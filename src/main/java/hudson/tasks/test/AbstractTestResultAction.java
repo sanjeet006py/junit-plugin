@@ -293,6 +293,11 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         return Collections.emptyList();
     }
 
+    /**
+     * Start for Test Result Trends.
+     * From here onwards start the code area reposible for generating various test result trends.
+     */
+
     public hudson.tasks.junit.TestResult loadXmlUtil(){return null;}
 
     /**
@@ -300,24 +305,37 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      * @return Array of packages of all hierarchies.
      */
     public String[] getProjectList(){
+        /**
+         * If project list is already ready no need to construct again.
+         */
         if(projectList!=null) return projectList;
         hudson.tasks.junit.TestResult r = loadXmlUtil();
         Collection<SuiteResult> suiteList = r.getSuites();
-        Set<String> projectSet = new HashSet<String>(); //A set for the package names.
+        /**
+         * A set for the package names.
+         */
+        Set<String> projectSet = new HashSet<String>();
         for(SuiteResult sr: suiteList){
             for(CaseResult cr: sr.getCases()){
                 String caseName = cr.getFullName();
                 String projectName = "";
-                String[] packageTree = caseName.split("[.]"); //Splitting package by treating "." as separator.
-                for(int i=0;i<packageTree.length-2;i++){  //Iterating till the length-2 of packageTree array to exclude class name and test name.
+                /**
+                 * Splitting package by treating "." as separator.
+                 */
+                String[] packageTree = caseName.split("[.]");
+                /**
+                 * Iterating till the length-2 of packageTree array to exclude class name and test name.
+                 */
+                for(int i=0;i<packageTree.length-2;i++){
                     if(!projectName.isEmpty()) projectName+='.';
                     projectName+=packageTree[i];
                     projectSet.add(projectName);
                 }
             }
         }
-        /*
-        Converting the set of package names to the corresponding array and finally sorting it in ascending order.
+        /**
+         * Converting the set of package names to the corresponding array
+         * and finally sorting it in ascending order.
          */
         int size = projectSet.size();
         projectList = new String[size];
@@ -343,8 +361,9 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         if(req.checkIfModified(run.getTimestamp(),rsp))
             return;
 
-        //ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
-        //ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
+        /**
+         * Utility method for creating various test result trends.
+         */
         doGraphUtil(req, rsp);
     }
 
@@ -353,27 +372,45 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      * request message.
      * @param req HTTP request message for the image of trend.
      * @param rsp HTTP respose message for the requested image.
-     * @throws IOException
+     * @throws IOException in case an exception occurs in
+     * {@link ChartUtil#generateGraph(StaplerRequest, StaplerResponse, JFreeChart, Area)}
      */
     public void doGraphUtil(StaplerRequest req, StaplerResponse rsp) throws IOException {
         String projectLevel = getParameter(req,PROJECTLEVEL);
         String trendType = getParameter(req,TRENDTYPE);
-        /*
-        A binary search
+        /**
+         * A binary search for verifying whether the
          */
         int indx = Arrays.binarySearch(projectList,projectLevel);
         if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
+            /**
+             * This method generates the trend depicting no. of failed, passed and skipped testcases for
+             * the specified project or for all projects.
+             */
             ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSetPerProject(req)),calcDefaultSize());
         }
         else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
+            /**
+             * This method generates the trends depicting no. of passed testcases which took longer duartion
+             * to run in the given build.
+             */
             if(map==null) map = new HashMap<NumberOnlyBuildLabel, Integer>();
             ChartUtil.generateGraph(req,rsp,createChart(req,buildLengthyTestDataset(req)),calcDefaultSize());
         }
         else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
+            /**
+             * This method generates the trends depicting no. of passed and failed testcases which were
+             * inconsistently failing or passing i.e. flappy behaviour.
+             */
             if(toolTip==null) toolTip = new HashMap<NumberOnlyBuildLabel,String>();
             ChartUtil.generateGraph(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
         }
         else{
+            /**
+             * This method is invoked when a user deliberately fires a wrong url with invalid query
+             * parameters and it depicts trend showing no. of passed, failed and skipped testcases for all
+             * projects.
+             */
             ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
         }
     }
@@ -384,7 +421,10 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     public void doGraphMap( StaplerRequest req, StaplerResponse rsp) throws IOException {
         if(req.checkIfModified(run.getTimestamp(),rsp))
             return;
-        //ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
+        /**
+         * The Utility method to gernerate a mapping from chart coordinates to url to redirect to on
+         * clicking the trend.
+         */
         doGraphMapUtil(req,rsp);
     }
 
@@ -393,24 +433,53 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         String trendType = getParameter(req,TRENDTYPE);
         int indx = Arrays.binarySearch(projectList,projectLevel);
         if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
+            /**
+             * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
+             * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
+             */
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSetPerProject(req)),calcDefaultSize());
         }
         else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
+            /**
+             * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
+             * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
+             */
             if(map==null) map = new HashMap<NumberOnlyBuildLabel, Integer>();
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildLengthyTestDataset(req)),calcDefaultSize());
         }
         else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
+            /**
+             * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
+             * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
+             */
             if(toolTip==null) toolTip = new HashMap<NumberOnlyBuildLabel,String>();
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
         }
         else{
+            /**
+             * This method is invoked when a user deliberately fires a wrong url with invalid query
+             * parameters and it generates a mapping for the same scenario in
+             * {@link #doGraphUtil(StaplerRequest, StaplerResponse)}.
+             */
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
         }
     }
 
+    /**
+     * A method to extract value of query parameters from url.
+     * @param req The HTTP request message.
+     * @param paramName The name of the query parameter to be extracted.
+     * @return The extracted value of the of the query parameter.
+     * <p>
+     * If the user deliberately fires url with less query parameters than those missing query parameters
+     * are assigned default values.
+     */
     private String getParameter(StaplerRequest req, String paramName){
         String paramValue = req.getParameter(paramName);
         if(paramValue==null){
+            /**
+             * The default values for each of the mandatory query parameter.
+             */
             if(paramName.equals(FAILUREONLY)) return ISFAILUREONLY;
             else if(paramName.equals(PROJECTLEVEL)) return ALLPROJECTS;
             else if(paramName.equals(TRENDTYPE)) return TREND1;
@@ -439,6 +508,20 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         else
             return new Area(500,200);
     }
+
+    /**
+     * A method to build the dataset to be used for generating trends.
+     * @param req The HTTP request message for the trend.
+     * @return An object of type {@link CategoryDataset} in which columns are the build numbers to be depicted on
+     * x-axis and rows are the different data series that need to be analysed.
+     * <p>
+     * This method creates {@link CategoryDataset} object and the created object is exactly same as the one
+     * created by {@link #buildDataSetPerProject(StaplerRequest)} with the only difference being it does not
+     * work for a particular project but only for "AllProjects" option.
+     * <p>
+     * This method is retained though its functionality is subset of functionality of
+     * {@link #buildDataSetPerProject(StaplerRequest)} as it was there in older versions also.
+     */
     
     private CategoryDataset buildDataSet(StaplerRequest req) {
         boolean failureOnly = Boolean.valueOf(getParameter(req,FAILUREONLY));
@@ -462,9 +545,22 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         return dsb.build();
     }
 
+    /**
+     * A method to build dataset for the chosen project to generate trends.
+     * @param req The HTTP request message for the particular project or all projects for overall
+     *            build analysis trend type.
+     * @return An object of type {@link CategoryDataset} in which columns are the build numbers to be
+     * displayed on x-axis and rows are the different data series that need to be analysed for the chosen
+     * project.
+     * <p>
+     * This method creates {@link CategoryDataset} object for the chosen project with three data series
+     * namely "failed" for the no. of failed testcases, "skipped" for number of skipped testcases and
+     * "total" which contains no. of passed testcases. As the generated chart is stacked area chart and
+     * total is plotted on top of failed and skipped data series so, total(data series) effectively
+     * depict total number of testcases in the build.
+     */
+
     private CategoryDataset buildDataSetPerProject(StaplerRequest req){
-        //System.out.println(Thread.currentThread().getName());
-        //System.out.println(Thread.currentThread().getId());
         boolean failureOnly = Boolean.valueOf(getParameter(req,FAILUREONLY));
         String projectLevel = getParameter(req,PROJECTLEVEL);
         boolean allPackages = projectLevel.equals(ALLPROJECTS);
@@ -477,9 +573,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 break;
             }
             hudson.tasks.junit.TestResult r = a.loadXmlUtil();
-            List<CaseResult> passedTests = r.getPassedTests();
             List<CaseResult> failedTests = r.getFailedTests();
-            List<CaseResult> skippedTests = r.getSkippedTests();
             int failCount = 0, passCount = 0, skipCount = 0;
             for(CaseResult cr: failedTests){
                 String caseName = cr.getFullName();
@@ -489,12 +583,14 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             }
             dsb.add(failCount, "failed", new NumberOnlyBuildLabel(a.run));
             if(!failureOnly) {
+                List<CaseResult> passedTests = r.getPassedTests();
                 for(CaseResult cr: passedTests){
                     String caseName = cr.getFullName();
                     if(allPackages||(!allPackages&&caseName.startsWith(projectLevel))){
                         passCount++;
                     }
                 }
+                List<CaseResult> skippedTests = r.getSkippedTests();
                 for(CaseResult cr: skippedTests){
                     String caseName = cr.getFullName();
                     if(allPackages||(!allPackages&&caseName.startsWith(projectLevel))){
