@@ -214,6 +214,11 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
         return r;
     }
 
+    @Override
+    public TestResult loadXmlUtil() {
+        return getResult();
+    }
+
     public Object getTarget() {
         return getResult();
     }

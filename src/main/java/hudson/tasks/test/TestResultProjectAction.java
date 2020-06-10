@@ -36,6 +36,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -154,5 +155,65 @@ public class TestResultProjectAction implements Action {
         rsp.sendRedirect("..");
     }
 
+    public void doSelectInput(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException{
+        AbstractTestResultAction a = getLastTestResultAction();
+        String[] projectList;
+        if(a!=null){
+            projectList = a.getProjectList();
+            String projectLevel = getParameter(req,PROJECTLEVEL);
+            if(Arrays.binarySearch(projectList,projectLevel)<0){
+                projectLevel = PROJECTS;
+            }
+            String trendType = getParameter(req,TRENDTYPE);
+            if(!trendType.equals(TREND1)&&!trendType.equals(TREND2)&&!trendType.equals(TREND3)){
+                trendType = TREND1;
+            }
+            int indx = trendType.lastIndexOf('_');
+            String metricName = null;
+            if(indx>=0){
+                metricName = trendType.substring(indx+1);
+                trendType = trendType.substring(0,indx);
+                addCookie(req,rsp,METRIC_NAME_COOKIE,metricName);
+            }
+            if(projectLevel!=null){
+                addCookie(req,rsp,PROJECT_LEVEL_COOKIE,projectLevel);
+            }
+            if(trendType!=null){
+                addCookie(req,rsp,TREND_TYPE_COOKIE,trendType);
+            }
+            rsp.sendRedirect("..");
+        }
+        else{
+            rsp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        }
+    }
+
+    private void addCookie(StaplerRequest req, StaplerResponse rsp, String cookieName, String cookieValue){
+        Cookie cookie = new Cookie(cookieName,cookieValue);
+        List anc = req.getAncestors();
+        Ancestor a = (Ancestor) anc.get(anc.size()-2);
+        cookie.setPath(a.getUrl()); // just for this project
+        cookie.setMaxAge(60*60*24*365); // 1 year
+        rsp.addCookie(cookie);
+    }
+
+    private String getParameter(StaplerRequest req, String paramName){
+        String paramValue = req.getParameter(paramName);
+        if(paramValue==null){
+            if(paramName.equals(PROJECTLEVEL)) return PROJECTS;
+            else if(paramName.equals(TRENDTYPE)) return TREND1;
+        }
+        return paramValue;
+    }
+
     private static final String FAILURE_ONLY_COOKIE = "TestResultAction_failureOnly";
+    private static final String PROJECT_LEVEL_COOKIE = "TestResultAction_projectLevel";
+    private static final String TREND_TYPE_COOKIE = "TestResultAction_trendType";
+    private static final String METRIC_NAME_COOKIE = "TestResultAction_metricName";
+    private static final String PROJECTS = "AllProjects";
+    private static final String TREND1 = "BuildAnalysis";
+    private static final String TREND2 = "LengthyTests_mean";
+    private static final String TREND3 = "FlakyTests";
+    private static final String PROJECTLEVEL = "projectLevel";
+    private static final String TRENDTYPE = "trendType";
 }
