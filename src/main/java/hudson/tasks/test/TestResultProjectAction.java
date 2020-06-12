@@ -215,7 +215,7 @@ public class TestResultProjectAction implements Action {
     private String getParameter(StaplerRequest req, String paramName){
         String paramValue = req.getParameter(paramName);
 
-        /**
+        /*
          * If the requested query parameter is absent as user deliberately fired url with less no. of parameters
          * the these default values are assigned.
          */
