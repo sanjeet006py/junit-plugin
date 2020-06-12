@@ -32,6 +32,9 @@ THE SOFTWARE.
       <j:set var="project" value="${h.getCookie(request,'TestResultAction_projectLevel').value}" />
       <j:set var="trend" value="${h.getCookie(request,'TestResultAction_trendType').value}" />
       <j:set var="metric" value="${h.getCookie(request,'TestResultAction_metricName').value}" />
+
+      <!-- If any of the above declared variables equals null then default value is assigned to the corresponding
+      query parameter in url. -->
       <j:choose>
       <j:when test="${mode!=null}">
         <j:set var="trendQueryString1" value="?failureOnly=${mode}" />
@@ -88,7 +91,15 @@ THE SOFTWARE.
         </a> <st:nbsp/>
         <a href="test/?width=800&amp;height=600${trendQueryString2+projectQueryString2+typeQueryString2+metricQueryString2}">${%enlarge}</a>
       </div>
+
+      <!-- Two drop down menus generated using HTML for selecting the project and the trend type. Unless expanded,
+      they always display last selected option and if no selection has been made yet then they display
+      "All Projects" in "Choose project" drop down and "Overall Build Analysis" in "Choose Trend Type" drop down.
+      This selective behaviour has been implemented by encapsulating <option> tag of HTML within <j:choose> tag
+      and for selection "selected" attribute of <option> tag is used. -->
       <div>
+
+        <!-- GET method is used by form in HTTP request. -->
         <form method="get">
             <label for="projectMenu">Choose Project:</label><st:nbsp/>
             <select name="projectLevel" id="projectMenu">
@@ -138,6 +149,9 @@ THE SOFTWARE.
                     </j:otherwise>
                 </j:choose>
             </select><st:nbsp/>
+
+            <!-- Button is of "submit" type to make use of "formaction" attribute of "button" tag in HTML for
+            making api call. -->
             <button type="submit" formaction="test/selectInput">Submit</button><st:nbsp/>
         </form>
       </div>

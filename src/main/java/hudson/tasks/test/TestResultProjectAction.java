@@ -155,6 +155,12 @@ public class TestResultProjectAction implements Action {
         rsp.sendRedirect("..");
     }
 
+    /**
+     * Method to modify cookies for displaying requested trend.
+     * @param req The HTTP request message incorporating api call this method.
+     * @param rsp The HTTP response message.
+     * @throws IOException Can occur while redirecting.
+     */
     public void doSelectInput(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException{
         AbstractTestResultAction a = getLastTestResultAction();
         String[] projectList;
@@ -188,6 +194,14 @@ public class TestResultProjectAction implements Action {
         }
     }
 
+    /**
+     * Method to add overwritten cookie to the response.
+     * @param req The HTTP request message containing api call for
+     *            {@link #doSelectInput(StaplerRequest, StaplerResponse)}.
+     * @param rsp The HTTP response message.
+     * @param cookieName Name of the cookie to be modified.
+     * @param cookieValue New value of the cookie after modification.
+     */
     private void addCookie(StaplerRequest req, StaplerResponse rsp, String cookieName, String cookieValue){
         Cookie cookie = new Cookie(cookieName,cookieValue);
         List anc = req.getAncestors();
@@ -197,8 +211,19 @@ public class TestResultProjectAction implements Action {
         rsp.addCookie(cookie);
     }
 
+    /**
+     * Method to extract query parameter from the url and if missing then return default value.
+     * @param req The HTTP request message containing query parameter.
+     * @param paramName The query parameter whose value needs to be extracted.
+     * @return The value of the query parameter specified as paramName.
+     */
     private String getParameter(StaplerRequest req, String paramName){
         String paramValue = req.getParameter(paramName);
+
+        /**
+         * If the requested query parameter is absent as user deliberately fired url with less no. of parameters
+         * the these default values are assigned.
+         */
         if(paramValue==null){
             if(paramName.equals(PROJECTLEVEL)) return PROJECTS;
             else if(paramName.equals(TRENDTYPE)) return TREND1;

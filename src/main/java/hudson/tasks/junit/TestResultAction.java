@@ -214,8 +214,14 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
         return r;
     }
 
+    /**
+     * A method to get {@link TestResult} object if it is already loaded with data and if it has been GC'ed
+     * then first load the {@link TestResult} object with data, create a weak reference to it and return it.
+     * @return {@link TestResult} object loaded with data of test suites and test cases within them from
+     * junitResult.xml
+     */
     @Override
-    public TestResult loadXmlUtil() {
+    public TestResult loadXml() {
         return getResult();
     }
 

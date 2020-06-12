@@ -80,10 +80,25 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
 
     private Map<String,String> descriptions = new ConcurrentHashMap<String, String>();
 
-    private Map<NumberOnlyBuildLabel, Integer> map;
+    /**
+     * Tool tips for "Overall Build Analysis" trend type.
+     */
+    private Map<NumberOnlyBuildLabel,Integer> failToolTip, totalToolTip, skipToolTip;
 
-    private Map<NumberOnlyBuildLabel,String> toolTip;
+    /**
+     * Tool tips for "Lengthy Tests" trend type.
+     */
+    private Map<NumberOnlyBuildLabel, Integer> lengthyToolTip;
 
+    /**
+     * Tool tips for "Flaky Tests" trend type.
+     */
+    private Map<NumberOnlyBuildLabel,String> flapperToolTip;
+
+    /**
+     * Array for storing package hierarchy derived from each testcase, used for selecting a particular
+     * project.
+     */
     private String[] projectList;
 
     /** @since 1.545 */
@@ -295,10 +310,10 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
 
     /**
      * Start for Test Result Trends.
-     * From here onwards start the code area reposible for generating various test result trends.
+     * From here onwards start the code area responsible for generating various test result trends.
      */
 
-    public hudson.tasks.junit.TestResult loadXmlUtil(){return null;}
+    public hudson.tasks.junit.TestResult loadXml(){return null;}
 
     /**
      * A method for getting the list of packages for all levels of hierarchy.
@@ -309,7 +324,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * If project list is already ready no need to construct again.
          */
         if(projectList!=null) return projectList;
-        hudson.tasks.junit.TestResult r = loadXmlUtil();
+        hudson.tasks.junit.TestResult r = loadXml();
         Collection<SuiteResult> suiteList = r.getSuites();
         /**
          * A set for the package names.
@@ -371,7 +386,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      * A utility method for constructing trends based upon the query parameters passed in the
      * request message.
      * @param req HTTP request message for the image of trend.
-     * @param rsp HTTP respose message for the requested image.
+     * @param rsp HTTP response message for the requested image.
      * @throws IOException in case an exception occurs in
      * {@link ChartUtil#generateGraph(StaplerRequest, StaplerResponse, JFreeChart, Area)}
      */
@@ -379,7 +394,8 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         String projectLevel = getParameter(req,PROJECTLEVEL);
         String trendType = getParameter(req,TRENDTYPE);
         /**
-         * A binary search for verifying whether the
+         * A binary search for verifying whether the given project level is valid or not. If found in the
+         * array or is equal to "AllProjects" the valid else not.
          */
         int indx = Arrays.binarySearch(projectList,projectLevel);
         if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
@@ -387,14 +403,17 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
              * This method generates the trend depicting no. of failed, passed and skipped testcases for
              * the specified project or for all projects.
              */
+            if(failToolTip ==null) failToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(totalToolTip ==null) totalToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(skipToolTip ==null) skipToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
             ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSetPerProject(req)),calcDefaultSize());
         }
         else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
             /**
-             * This method generates the trends depicting no. of passed testcases which took longer duartion
+             * This method generates the trends depicting no. of passed testcases which took longer duration
              * to run in the given build.
              */
-            if(map==null) map = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(lengthyToolTip ==null) lengthyToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
             ChartUtil.generateGraph(req,rsp,createChart(req,buildLengthyTestDataset(req)),calcDefaultSize());
         }
         else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
@@ -402,7 +421,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
              * This method generates the trends depicting no. of passed and failed testcases which were
              * inconsistently failing or passing i.e. flappy behaviour.
              */
-            if(toolTip==null) toolTip = new HashMap<NumberOnlyBuildLabel,String>();
+            if(flapperToolTip ==null) flapperToolTip = new HashMap<NumberOnlyBuildLabel,String>();
             ChartUtil.generateGraph(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
         }
         else{
@@ -422,12 +441,20 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         if(req.checkIfModified(run.getTimestamp(),rsp))
             return;
         /**
-         * The Utility method to gernerate a mapping from chart coordinates to url to redirect to on
+         * The Utility method to generate a mapping from chart coordinates to url to redirect to on
          * clicking the trend.
          */
         doGraphMapUtil(req,rsp);
     }
 
+    /**
+     * A utility method for constructing a mapping from chart coordinates to the url to redirect to on
+     * clicking the trend.
+     * @param req HTTP request message for the image of trend.
+     * @param rsp HTTP response message for the requested image.
+     * @throws IOException In case an exception occurs in
+     * {@link ChartUtil#generateClickableMap(StaplerRequest, StaplerResponse, JFreeChart, Area)}
+     */
     public void doGraphMapUtil(StaplerRequest req, StaplerResponse rsp) throws IOException{
         String projectLevel = getParameter(req,PROJECTLEVEL);
         String trendType = getParameter(req,TRENDTYPE);
@@ -437,6 +464,9 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
              * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
              * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
              */
+            if(failToolTip ==null) failToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(totalToolTip ==null) totalToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(skipToolTip ==null) skipToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSetPerProject(req)),calcDefaultSize());
         }
         else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
@@ -444,7 +474,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
              * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
              * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
              */
-            if(map==null) map = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(lengthyToolTip ==null) lengthyToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildLengthyTestDataset(req)),calcDefaultSize());
         }
         else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
@@ -452,13 +482,13 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
              * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
              * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
              */
-            if(toolTip==null) toolTip = new HashMap<NumberOnlyBuildLabel,String>();
+            if(flapperToolTip ==null) flapperToolTip = new HashMap<NumberOnlyBuildLabel,String>();
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
         }
         else{
             /**
              * This method is invoked when a user deliberately fires a wrong url with invalid query
-             * parameters and it generates a mapping for the same scenario in
+             * parameters and it generates a mapping for the same scenario as in
              * {@link #doGraphUtil(StaplerRequest, StaplerResponse)}.
              */
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
@@ -471,7 +501,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      * @param paramName The name of the query parameter to be extracted.
      * @return The extracted value of the of the query parameter.
      * <p>
-     * If the user deliberately fires url with less query parameters than those missing query parameters
+     * If the user deliberately fires url with less query parameters then those missing query parameters
      * are assigned default values.
      */
     private String getParameter(StaplerRequest req, String paramName){
@@ -522,7 +552,6 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      * This method is retained though its functionality is subset of functionality of
      * {@link #buildDataSetPerProject(StaplerRequest)} as it was there in older versions also.
      */
-    
     private CategoryDataset buildDataSet(StaplerRequest req) {
         boolean failureOnly = Boolean.valueOf(getParameter(req,FAILUREONLY));
 
@@ -559,7 +588,6 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      * total is plotted on top of failed and skipped data series so, total(data series) effectively
      * depict total number of testcases in the build.
      */
-
     private CategoryDataset buildDataSetPerProject(StaplerRequest req){
         boolean failureOnly = Boolean.valueOf(getParameter(req,FAILUREONLY));
         String projectLevel = getParameter(req,PROJECTLEVEL);
@@ -572,7 +600,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[] {run, cap});
                 break;
             }
-            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            hudson.tasks.junit.TestResult r = a.loadXml();
             List<CaseResult> failedTests = r.getFailedTests();
             int failCount = 0, passCount = 0, skipCount = 0;
             for(CaseResult cr: failedTests){
@@ -581,7 +609,13 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                     failCount++;
                 }
             }
-            dsb.add(failCount, "failed", new NumberOnlyBuildLabel(a.run));
+            NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a.run);
+            dsb.add(failCount, "failed", label);
+            /**
+             * Also being stored in {@link #failToolTip} in order to generate tooltips on hovering mouse over the
+             * trend.
+             */
+            failToolTip.put(label,failCount);
             if(!failureOnly) {
                 List<CaseResult> passedTests = r.getPassedTests();
                 for(CaseResult cr: passedTests){
@@ -597,193 +631,291 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                         skipCount++;
                     }
                 }
-                dsb.add( skipCount, "skipped", new NumberOnlyBuildLabel(a.run));
-                dsb.add( passCount,"total", new NumberOnlyBuildLabel(a.run));
+                label = new NumberOnlyBuildLabel(a.run);
+                dsb.add( skipCount, "skipped", label);
+                /**
+                 * Also being stored in {@link #skipToolTip} in order to generate tooltips on hovering mouse over the
+                 * trend.
+                 */
+                skipToolTip.put(label,skipCount);
+                label = new NumberOnlyBuildLabel(a.run);
+                dsb.add( passCount,"total", label);
+                /**
+                 * Also being stored in {@link #totalToolTip} in order to generate tooltips on hovering mouse over the
+                 * trend.
+                 */
+                totalToolTip.put(label,passCount+failCount+skipCount);
             }
         }
         LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
         return dsb.build();
     }
 
-    private void calculateLengthyTestsByMean(float alpha, String projectName){
-        //System.out.println(Thread.currentThread().getName());
-        //System.out.println(Thread.currentThread().getId());
-        boolean allPackages = projectName.equals(ALLPROJECTS);
-        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+    /**
+     * A method to calculate ewma(exponentially weighted moving average) time for the given testcase and to
+     * check whether the testcase took longer to run.
+     * @param alpha As name suggests it is the alpha parameter involved in calculating ewma. It is the
+     *              weight assigned to time taken by the given testcase when last time it passed.
+     * @param cr The {@link CaseResult} object representing the testcase for which we need to compute
+     *           ewma time to check whether it took longer to run.
+     * @param allTests Hash Map containing all the testcases which passed in any of the previous builds. The
+     *                 testcases are key and their ewma Time is the corresponding value.
+     * @return 1 if the given testcase took longer to run else returns 0.
+     */
+    private int calculateLengthyTestsByMean(float alpha, CaseResult cr, Map<String, Float> allTests){
+        String testName = cr.getFullName();
         int count = 0;
-        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
-            if (++count > cap) {
-                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
-                break;
-            }
-            stack.push(a);
+        float ewmaTime =  allTests.getOrDefault(testName,0.0f);
+        /**
+         * If this the first build in which the given testcase passed then the testcase won't be considered
+         * to be taking longer to run in this build.
+         */
+        if(allTests.containsKey(testName)&&cr.getDuration()>ewmaTime){
+            count++;
         }
-        Map<String,Float> allTests = new HashMap<String,Float>();
-        while(!stack.isEmpty()){
-            AbstractTestResultAction a = stack.peek();
-            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
-            List<CaseResult> passedTests = r.getPassedTests();
-            int lengthyTestCount = 0;
-            for(CaseResult cr: passedTests){
-                if(!allPackages&&!cr.getFullName().startsWith(projectName)) continue;
-                String testName = cr.getFullName();
-                float ewmaTime =  allTests.getOrDefault(testName,0.0f);
-                if(ewmaTime!=0.0f&&cr.getDuration()>ewmaTime){
-                    lengthyTestCount++;
-                }
-                if(ewmaTime==0.0f){
-                    allTests.put(testName,cr.getDuration());
-                }
-                else {
-                    ewmaTime = alpha * cr.getDuration() + (1 - alpha) * ewmaTime;
-                    ewmaTime = (1.0f*Math.round(100000*ewmaTime))/100000;
-                    allTests.put(testName,ewmaTime);
-                }
-            }
-            map.put(new NumberOnlyBuildLabel(a.run),lengthyTestCount);
-            stack.pop();
+        /**
+         * If this the first build in which given testcase passed then its ewma time is equal to the
+         * duration it took run and from hereon the ewma time will be calculated based upon the formula in
+         * else clause and will be rounded to 5 decimal places.
+         */
+        if(!allTests.containsKey(testName)){
+            allTests.put(testName,cr.getDuration());
         }
-        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+        else {
+            ewmaTime = alpha * cr.getDuration() + (1 - alpha) * ewmaTime;
+            ewmaTime = (1.0f*Math.round(100000*ewmaTime))/100000;
+            allTests.put(testName,ewmaTime);
+        }
+        return count;
     }
 
-    private void calculateLengthyTestsByMax(String projectName){
-        boolean allPackages = projectName.equals(ALLPROJECTS);
-        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+    /**
+     * A method to determine whether a passed testcase took longer to run based upon the max time it took
+     * to run among all the previous builds.
+     * @param cr The {@link CaseResult} object representing the testcase for which we need to determine
+     *           whether it took longer to run in this build.
+     * @param allTests Hash Map containing all the testcases which passed in any of the previous builds. The
+     *                 testcases are key and the max time they took among all previous builds is the
+     *                 corresponding value.
+     * @return 1 if the given testcase took longer to run else returns 0.
+     */
+    private int calculateLengthyTestsByMax(CaseResult cr, Map<String, Float> allTests){
+        String testName = cr.getFullName();
         int count = 0;
-        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
-            if (++count > cap) {
-                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
-                break;
-            }
-            stack.push(a);
+        float maxTime =  allTests.getOrDefault(testName,0.0f);
+        /**
+         * If this the first build in which the given testcase passed then the testcase won't be considered
+         * to be taking longer to run in this build.
+         */
+        if(allTests.containsKey(testName)&&cr.getDuration()>maxTime){
+            count++;
         }
-        Map<String,Float> allTests = new HashMap<String,Float>();
-        while(!stack.isEmpty()){
-            AbstractTestResultAction a = stack.peek();
-            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
-            List<CaseResult> passedTests = r.getPassedTests();
-            int lengthyTestCount = 0;
-            for(CaseResult cr: passedTests){
-                if(!allPackages&&!cr.getFullName().startsWith(projectName)) continue;
-                String testName = cr.getFullName();
-                float maxTime =  allTests.getOrDefault(testName,0.0f);
-                if(maxTime!=0.0f&&cr.getDuration()>maxTime){
-                    lengthyTestCount++;
-                }
-                maxTime = Math.max(maxTime,cr.getDuration());
-                allTests.put(testName,maxTime);
-            }
-            map.put(new NumberOnlyBuildLabel(a.run),lengthyTestCount);
-            stack.pop();
-        }
-        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+        maxTime = Math.max(maxTime,cr.getDuration());
+        allTests.put(testName,maxTime);
+        return count;
     }
 
-    private void calculateLengthyTestsByPrev(String projectName){
-        boolean allPackages = projectName.equals(ALLPROJECTS);
-        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+    /**
+     * A method to determine whether a passed testcase took longer to run based upon the time it took to
+     * run in the previous build in which it passed.
+     * @param cr The {@link CaseResult} object representing the testcase for which we need to determine
+     *           whether it took longer to run in this build.
+     * @param allTests Hash Map containing all the testcases which passed in any of the previous builds. The
+     *                 testcases are key and the time they took in the previous build in which they passed
+     *                 are the corresponding values.
+     * @return 1 if the given testcase took longer to run else returns 0.
+     */
+    private int calculateLengthyTestsByPrev(CaseResult cr, Map<String, Float> allTests){
+        String testName = cr.getFullName();
         int count = 0;
-        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
-            if (++count > cap) {
-                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
-                break;
-            }
-            stack.push(a);
+        float prevTime =  allTests.getOrDefault(testName,0.0f);
+        /**
+         * If this the first build in which the given testcase passed then the testcase won't be considered
+         * to be taking longer to run in this build.
+         */
+        if(allTests.containsKey(testName)&&cr.getDuration()>prevTime){
+            count++;
         }
-        Map<String,Float> allTests = new HashMap<String,Float>();
-        while(!stack.isEmpty()){
-            AbstractTestResultAction a = stack.peek();
-            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
-            List<CaseResult> passedTests = r.getPassedTests();
-            int lengthyTestCount = 0;
-            for(CaseResult cr: passedTests){
-                if(!allPackages&&!cr.getFullName().startsWith(projectName)) continue;
-                String testName = cr.getFullName();
-                float prevTime =  allTests.getOrDefault(testName,0.0f);
-                if(prevTime!=0.0f&&cr.getDuration()>prevTime){
-                    lengthyTestCount++;
-                }
-                prevTime = cr.getDuration();
-                allTests.put(testName,prevTime);
-            }
-            map.put(new NumberOnlyBuildLabel(a.run),lengthyTestCount);
-            stack.pop();
-        }
-        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+        prevTime = cr.getDuration();
+        allTests.put(testName,prevTime);
+        return count;
     }
 
-    private void calculateLengthyTestsByThreshold(float threshold, String projectName){
-        boolean allPackages = projectName.equals(ALLPROJECTS);
-        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
-        int count = 0;
-        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
-            if (++count > cap) {
-                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
-                break;
-            }
-            stack.push(a);
+    /**
+     * A method to determine whether a passed testcase took longer to run based upon whether the time it
+     * took to run is greater than the predefined threshold.
+     * @param threshold The threshold which classifies a testcase as taking longer to run if the testcase
+     *                  takes more than the threshold amount of time to run.
+     * @param cr The {@link CaseResult} object representing the testcase for which we need to determine
+     *           whether it took longer to run in this build.
+     * @return 1 if the given testcase took longer to run else returns 0.
+     */
+    private int calculateLengthyTestsByThreshold(float threshold, CaseResult cr){
+        if(cr.getDuration()>threshold){
+            return 1;
         }
-        Set<String> allTests = new HashSet<String>();
-        while(!stack.isEmpty()){
-            AbstractTestResultAction a = stack.peek();
-            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
-            List<CaseResult> passedTests = r.getPassedTests();
-            int lengthyTestCount = 0;
-            for(CaseResult cr: passedTests){
-                if(!allPackages&&!cr.getFullName().startsWith(projectName)) continue;
-                String testName = cr.getFullName();
-                if(allTests.contains(testName)&&cr.getDuration()>threshold){
-                    lengthyTestCount++;
-                }
-                allTests.add(testName);
-            }
-            map.put(new NumberOnlyBuildLabel(a.run),lengthyTestCount);
-            stack.pop();
-        }
-        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+        return 0;
     }
 
+    /**
+     * A method to build dataset for the chosen project in order to generate trends for the analysis of
+     * testcases which took longer to run.
+     * @param req The HTTP request message for the particular project or all projects for "lengthy tests"
+     *            trend type.
+     * @return An object of type {@link CategoryDataset} in which columns are the build numbers to be
+     * displayed on x-axis and row is the data series depicting no. of passed testcases which took
+     * longer to run in the respective builds.
+     * <p>
+     * This method creates {@link CategoryDataset} object for the chosen project with data series named
+     * "Lengthy Tests".
+     */
     private CategoryDataset buildLengthyTestDataset(StaplerRequest req){
-        //System.out.println(Thread.currentThread().getName());
-        //System.out.println(Thread.currentThread().getId());
         String projectLevel = getParameter(req,PROJECTLEVEL);
         String metricName = getParameter(req,METRICNAME);
+        boolean allPackages = projectLevel.equals(ALLPROJECTS);
         DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<String,NumberOnlyBuildLabel>();
-        if(metricName.equals(METRIC4)) {
-            float threshold = 0.002f;
-            calculateLengthyTestsByThreshold(threshold,projectLevel);
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0;
+        /**
+         * A stack is used to traverse the builds in ascending order of build number. First traverse the
+         * builds in descending order of build number and push each of the builds onto the stack. Next
+         * pop each element of the stack and traverse the builds in ascending order of build number.
+         */
+        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
+                break;
+            }
+            stack.push(a);
         }
-        else if(metricName.equals(METRIC2)){
-            calculateLengthyTestsByMax(projectLevel);
+        /**
+         * A hash map for storing mapping of a testcase to the numerical value of metric used for determining
+         * whether the testcase is taking longer to run.
+         */
+        Map<String,Float> allTests = new HashMap<String,Float>();
+        while(!stack.isEmpty()){
+            AbstractTestResultAction a = stack.peek();
+            hudson.tasks.junit.TestResult r = a.loadXml();
+            List<CaseResult> passedTests = r.getPassedTests();
+            int lengthyTestCount = 0;
+            for(CaseResult cr: passedTests){
+                if(!allPackages&&!cr.getFullName().startsWith(projectLevel)) continue;
+                /**
+                 * Default metric for determining whether a testcase took longer to run is "mean" i.e.
+                 * metric using exponentially weighted moving average of test duration till the previous
+                 * build.
+                 * <p>
+                 * As of now only default metric i.e. "mean" is enabled but other metrics can also be
+                 * enabled by including them in the drop down menu provided on Jenkins UI.
+                 */
+                if(metricName.equals(METRIC4)) {
+                    float threshold = 0.002f;
+                    lengthyTestCount += calculateLengthyTestsByThreshold(threshold, cr);
+                }
+                else if(metricName.equals(METRIC2)){
+                    lengthyTestCount += calculateLengthyTestsByMax(cr, allTests);
+                }
+                else if(metricName.equals(METRIC3)){
+                    lengthyTestCount += calculateLengthyTestsByPrev(cr, allTests);
+                }
+                else{
+                    float alpha = 0.5f;
+                    lengthyTestCount += calculateLengthyTestsByMean(alpha, cr, allTests);
+                }
+            }
+            NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a.run);
+            dsb.add(lengthyTestCount, "Lengthy Tests", label);
+            /**
+             * Also being stored in {@link #lengthyToolTip} in order to generate tooltips on hovering mouse
+             * over the trend.
+             */
+            lengthyToolTip.put(label,lengthyTestCount);
+            stack.pop();
         }
-        else if(metricName.equals(METRIC3)){
-            calculateLengthyTestsByPrev(projectLevel);
-        }
-        else{
-            float alpha = 0.5f;
-            calculateLengthyTestsByMean(alpha,projectLevel);
-        }
-        for(NumberOnlyBuildLabel label: map.keySet()) {
-            dsb.add(map.get(label), "Lengthy Tests", label);
-        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
         return dsb.build();
     }
 
+    /**
+     * A utility method to shift the sliding window, being used for determining flaky behaviour of a
+     * testcase based upon whether a failed testcase passed in any of the builds in sliding window. If true
+     * the testcase is flaky else it is not.
+     * @param q The sliding window which is being implemented as queue containing objects of type
+     *          {@link AbstractTestResultAction}.
+     * @param flakySet All the testcases which passed in the previous builds of sliding window. The failed
+     *                 testcase whose behaviour needs to be determined is looked up in this set and if it's
+     *                 there then it is flaky else it is not.
+     * @param dsb A dataset used for generating trend of no. of flaky testcases in a build.
+     * @param projectLevel The particular chosen project or all projects.
+     * @param allPackages True if all projects need to be considered else false.
+     */
+    private void shiftWindowUtil(ArrayDeque<AbstractTestResultAction<?>> q,
+                                 Map<String,Integer> flakySet,
+                                 DataSetBuilder<String,NumberOnlyBuildLabel> dsb,
+                                 String projectLevel, boolean allPackages){
+        AbstractTestResultAction<?> a_ = q.peek();
+        q.remove();
+        hudson.tasks.junit.TestResult r_ = a_.loadXml();
+        List<CaseResult> passedTests= r_.getPassedTests();
+        for(CaseResult cr: passedTests){
+            String testName = cr.getFullName();
+            if(!allPackages&&!testName.startsWith(projectLevel)) continue;
+            flakySet.put(testName,flakySet.get(testName)-1);
+            if(flakySet.get(testName)==0) flakySet.remove(testName);
+        }
+        List<CaseResult> failedTests = r_.getFailedTests();
+        int flakeCount = 0;
+        String toolTipString = "";
+        for(CaseResult cr: failedTests){
+            String testName = cr.getFullName();
+            if(!allPackages&&!testName.startsWith(projectLevel)) continue;
+            if(flakySet.containsKey(testName)){
+                flakeCount++;
+                if(!toolTipString.equals("")) toolTipString+=',';
+                toolTipString+=cr.getName();
+            }
+        }
+        NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
+        dsb.add(flakeCount,"Flaky Tests",label);
+        /**
+         * Also being stored in {@link #flapperToolTip} in order to generate tooltips on hovering mouse over the
+         * trend.
+         */
+        flapperToolTip.put(label,toolTipString);
+    }
+
+    /**
+     * A method to build dataset for the chosen project in order to generate trends for the analysis of
+     * flaky testcases.
+     * @param req The HTTP request message for the particular project or all projects for flaky tests
+     *            trend type.
+     * @return An object of type {@link CategoryDataset} in which columns are the build numbers to be
+     * displayed on x-axis and row is the data series depicting no. of failed testcases which are flaky
+     * for the respective builds.
+     * <p>
+     * This method creates {@link CategoryDataset} object for the chosen project with data series named
+     * "Flaky Tests".
+     */
     private CategoryDataset buildFlakyTestDataset(StaplerRequest req){
-        //System.out.println(Thread.currentThread().getName());
-        //System.out.println(Thread.currentThread().getId());
         String projectLevel = getParameter(req,PROJECTLEVEL);
         boolean allPackages = projectLevel.equals(ALLPROJECTS);
         DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<String,NumberOnlyBuildLabel>();
         int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
         int count = 0;
         int flakyTestWindow = 10;
-        flakyTestWindow = Math.min(cap,flakyTestWindow);
+        /**
+         * A map storing mapping between a testcase and no. of times it passed in the previous builds
+         * contained in the sliding window.
+         * <p>
+         * Used for determining if a failed testcase is flaky or not by examining if its corresponding
+         * value in this map > 0. If yes it is flaky else it is not.
+         */
         Map<String,Integer> flakySet = new HashMap<String,Integer>();
+        /**
+         * The sliding window implemented as queue and contains object of type
+         * {@link AbstractTestResultAction}.
+         */
         ArrayDeque<AbstractTestResultAction<?>> q = new ArrayDeque<AbstractTestResultAction<?>>();
         for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
             if (++count > cap) {
@@ -791,33 +923,9 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 break;
             }
             if(count>flakyTestWindow){
-                AbstractTestResultAction<?> a_ = q.peek();
-                q.remove();
-                hudson.tasks.junit.TestResult r_ = a_.loadXmlUtil();
-                List<CaseResult> passedTests= r_.getPassedTests();
-                for(CaseResult cr: passedTests){
-                    String testName = cr.getFullName();
-                    if(!allPackages&&!testName.startsWith(projectLevel)) continue;
-                    flakySet.put(testName,flakySet.get(testName)-1);
-                    if(flakySet.get(testName)==0) flakySet.remove(testName);
-                }
-                List<CaseResult> failedTests = r_.getFailedTests();
-                int flakeCount = 0;
-                String toolTipString = "";
-                for(CaseResult cr: failedTests){
-                    String testName = cr.getFullName();
-                    if(!allPackages&&!testName.startsWith(projectLevel)) continue;
-                    if(flakySet.containsKey(testName)){
-                        flakeCount++;
-                        if(!toolTipString.equals("")) toolTipString+=',';
-                        toolTipString+=cr.getName();
-                    }
-                }
-                NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
-                dsb.add(flakeCount,"Flaky Tests",label);
-                toolTip.put(label,toolTipString);
+                shiftWindowUtil(q,flakySet,dsb,projectLevel,allPackages);
             }
-            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            hudson.tasks.junit.TestResult r = a.loadXml();
             List<CaseResult> passedTests = r.getPassedTests();
             q.add(a);
             for(CaseResult cr: passedTests){
@@ -830,58 +938,66 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             }
         }
         while(!q.isEmpty()){
-            AbstractTestResultAction<?> a_ = q.peek();
-            q.remove();
-            hudson.tasks.junit.TestResult r_ = a_.loadXmlUtil();
-            List<CaseResult> passedTests= r_.getPassedTests();
-            for(CaseResult cr: passedTests){
-                String testName = cr.getFullName();
-                if(!allPackages&&!testName.startsWith(projectLevel)) continue;
-                flakySet.put(testName,flakySet.get(testName)-1);
-                if(flakySet.get(testName)==0) flakySet.remove(testName);
-            }
-            List<CaseResult> failedTests = r_.getFailedTests();
-            int flakeCount = 0;
-            String toolTipString = "";
-            for(CaseResult cr: failedTests){
-                String testName = cr.getFullName();
-                if(!allPackages&&!testName.startsWith(projectLevel)) continue;
-                if(flakySet.containsKey(testName)){
-                    flakeCount++;
-                    if(!toolTipString.equals("")) toolTipString+=',';
-                    toolTipString+=cr.getName();
-                }
-            }
-            NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
-            dsb.add(flakeCount,"Flaky Tests",label);
-            toolTip.put(label,toolTipString);
+            shiftWindowUtil(q,flakySet,dsb,projectLevel,allPackages);
         }
         LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
         return dsb.build();
     }
 
+    /**
+     * A utility method for shifting the larger window involved in determining whether the given testcase
+     * is a test flapper or not.
+     * @param q2 The larger window is implemented as queue and contains object of type
+     *           {@link AbstractTestResultAction}.
+     * @param testMap A mapping from the testcase to the queue of build indices where testcase is the key and
+     *                its corresponding value is the queue of build indices at which the testcase failed or
+     *                passed consecutively.
+     * @param dsb A dataset used for generating trend of no. of flaky testcases in a build.
+     * @param projectLevel The particular chosen project or all projects.
+     * @param allPackages True if all projects need to be considered else false.
+     * @param flapperTestWindow Size of larger window.
+     * @param certaintyCount Size of smaller window. If at any point within larger window this window
+     *                       contains only passed or failed instances of a given testcase, then that
+     *                       testcase is not examined anymore in the larger window.
+     * @param count_ count of no. of steps the larger window has shifted.
+     * @param count Total count of no. of builds examined. It can be considered as 1-based index of a build.
+     * @param emptying True if all the builds have been examined by larger window and larger window is being
+     *                 emptied.
+     * <p>
+     * As soon as we reach end of larger window or smaller window contains all passed or failed instances
+     * of a testcase, testcase is declared as test flapper if:
+     *                 no. of steps smaller window moved > (flapperTestWindow-certaintyCount+1)/2
+     */
     private void shiftLargerWindowUtil(ArrayDeque<AbstractTestResultAction<?>> q2,
                                        Map<String, ArrayDeque<Integer>> testMap,
                                        DataSetBuilder<String,NumberOnlyBuildLabel> dsb,
                                        String projectLevel, boolean allPackages,
-                                       int flapperTestWindow, int certainityCount,
+                                       int flapperTestWindow, int certaintyCount,
                                        int count_, int count, boolean emptying){
         AbstractTestResultAction<?> a_ = q2.peek();
         q2.remove();
-        hudson.tasks.junit.TestResult r_ = a_.loadXmlUtil();
+        hudson.tasks.junit.TestResult r_ = a_.loadXml();
         List<CaseResult> tests = r_.getFailedTests();
         int failFlap =0, passFlap = 0;
+        /**
+         * Variable to hold string to be displayed as tooltip i.e. the string displayed when we hover mouse
+         * over the trend.
+         */
         String toolTipString = "";
         for(CaseResult cr: tests){
             String caseName = cr.getFullName();
             if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            /**
+             * A queue of build indices where smaller window contained all failed or passed instances of
+             * the testcase.
+             */
             ArrayDeque<Integer> q = testMap.getOrDefault(caseName,null);
-            while(q!=null&&!q.isEmpty()&&q.peek()-count_<certainityCount-1){
+            while(q!=null&&!q.isEmpty()&&q.peek()-count_<certaintyCount-1){
                 q.remove();
             }
             if(q!=null&&!q.isEmpty()){
-                int flapCount = Math.min(flapperTestWindow,q.peek()-count_)-certainityCount+1;
-                int threshCount = (flapperTestWindow-certainityCount+1)/2;
+                int flapCount = Math.min(flapperTestWindow,q.peek()-count_)-certaintyCount+1;
+                int threshCount = (flapperTestWindow-certaintyCount+1)/2;
                 if(flapCount> threshCount){
                     failFlap++;
                     if(!toolTipString.equals("")) toolTipString+=',';
@@ -889,8 +1005,8 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 }
             }
             else{
-                int flapCount = Math.min(flapperTestWindow,count+1-count_)-certainityCount+1;
-                int threshCount = (flapperTestWindow-certainityCount+1)/2;
+                int flapCount = Math.min(flapperTestWindow,count+1-count_)-certaintyCount+1;
+                int threshCount = (flapperTestWindow-certaintyCount+1)/2;
                 if(!emptying||flapCount> threshCount){
                     failFlap++;
                     if(!toolTipString.equals("")) toolTipString+=',';
@@ -902,23 +1018,27 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         for(CaseResult cr: tests){
             String caseName = cr.getFullName();
             if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            /**
+             * A queue of build indices where smaller window contained all failed or passed instances of
+             * the testcase.
+             */
             ArrayDeque<Integer> q = testMap.getOrDefault(caseName,null);
-            while(q!=null&&!q.isEmpty()&&q.peek()-count_<certainityCount-1){
+            while(q!=null&&!q.isEmpty()&&q.peek()-count_<certaintyCount-1){
                 q.remove();
             }
             if(q!=null&&!q.isEmpty()){
-                int flapCount = Math.min(flapperTestWindow,q.peek()-count_)-certainityCount+1;
-                int thershCount = (flapperTestWindow-certainityCount+1)/2;
-                if(flapCount>thershCount){
+                int flapCount = Math.min(flapperTestWindow,q.peek()-count_)-certaintyCount+1;
+                int threshCount = (flapperTestWindow-certaintyCount+1)/2;
+                if(flapCount> threshCount){
                     passFlap++;
                     if(!toolTipString.equals("")) toolTipString+=',';
                     toolTipString+=cr.getName();
                 }
             }
             else{
-                int flapCount = Math.min(flapperTestWindow,count+1-count_)-certainityCount+1;
-                int thershCount = (flapperTestWindow-certainityCount+1)/2;
-                if(!emptying||flapCount>thershCount){
+                int flapCount = Math.min(flapperTestWindow,count+1-count_)-certaintyCount+1;
+                int threshCount = (flapperTestWindow-certaintyCount+1)/2;
+                if(!emptying||flapCount> threshCount){
                     passFlap++;
                     if(!toolTipString.equals("")) toolTipString+=',';
                     toolTipString+=cr.getName();
@@ -927,9 +1047,64 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         }
         NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
         dsb.add(passFlap+failFlap,"Test Flappers",label);
-        toolTip.put(label,toolTipString);
+        /**
+         * Also being stored in {@link #flapperToolTip} in order to generate tooltips on hovering mouse over the
+         * trend.
+         */
+        flapperToolTip.put(label,toolTipString);
     }
 
+    /**
+     * A utility method for shifting the smaller window involved in determining whether the given testcase
+     * is a test flapper or not.
+     * @param q1 The smaller window is implemented as queue and contains object of type
+     *           {@link AbstractTestResultAction}.
+     * @param failedCount A mapping from testcase to no. of failed instances of that testcase in smaller
+     *                    window.
+     * @param passedCount A mapping from testcase to no. of passed instances of that testcase in smaller
+     *                    window.
+     * @param projectLevel The particular chosen project or all projects.
+     * @param allPackages True if all projects need to be considered else false.
+     */
+    private void shiftSmallerWindowUtil(ArrayDeque<AbstractTestResultAction<?>> q1,
+                                        Map<String, Integer> failedCount,
+                                        Map<String, Integer> passedCount,
+                                        String projectLevel, boolean allPackages){
+        AbstractTestResultAction<?> a_ = q1.peek();
+        q1.remove();
+        hudson.tasks.junit.TestResult r_ = a_.loadXml();
+        List<CaseResult> tests = r_.getFailedTests();
+        for(CaseResult cr: tests){
+            String caseName = cr.getFullName();
+            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            failedCount.put(caseName, failedCount.get(caseName)-1);
+            if(failedCount.get(caseName)==0){
+                failedCount.remove(caseName);
+            }
+        }
+        tests = r_.getPassedTests();
+        for(CaseResult cr: tests){
+            String caseName = cr.getFullName();
+            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            passedCount.put(caseName, passedCount.get(caseName)-1);
+            if(passedCount.get(caseName)==0){
+                passedCount.remove(caseName);
+            }
+        }
+    }
+
+    /**
+     * A method to build dataset for the chosen project in order to generate trends for the analysis of
+     * test flappers.
+     * @param req The HTTP request message for the particular project or all projects for flaky tests
+     *            trend type.
+     * @return An object of type {@link CategoryDataset} in which columns are the build numbers to be
+     * displayed on x-axis and row is the data series depicting no. of testcases which are test flappers
+     * for the respective builds.
+     * <p>
+     * This method creates {@link CategoryDataset} object for the chosen project with data series named
+     * "Test Flappers".
+     */
     private CategoryDataset buildFlapperTestDataset(StaplerRequest req){
         String projectLevel = getParameter(req,PROJECTLEVEL);
         boolean allPackages = projectLevel.equals(ALLPROJECTS);
@@ -937,13 +1112,33 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
         int count = 0, count_ = 0;
         int flapperTestWindow = 10;
-        int certainityCount = 3;
-        //flapperTestWindow = Math.min(cap,flapperTestWindow);
-        certainityCount = Math.min(flapperTestWindow,certainityCount);
+        int certaintyCount = 3;
+        certaintyCount = Math.min(flapperTestWindow,certaintyCount);
+        /**
+         * A mapping from the testcase to the queue of build indices where testcase is the key and
+         * its corresponding value is the queue of build indices at which the testcase failed or
+         * passed consecutively.
+         */
         Map<String, ArrayDeque<Integer>> testMap = new HashMap<String, ArrayDeque<Integer>>();
+        /**
+         * A mapping from testcase to no. of failed instances of that testcase in smaller
+         * window.
+         */
         Map<String, Integer> failedCount = new HashMap<String, Integer>();
+        /**
+         * A mapping from testcase to no. of passed instances of that testcase in smaller
+         * window.
+         */
         Map<String, Integer> passedCount = new HashMap<String, Integer>();
+        /**
+         * The smaller window is implemented as queue and contains object of type
+         * {@link AbstractTestResultAction}.
+         */
         ArrayDeque<AbstractTestResultAction<?>> q1 = new ArrayDeque<AbstractTestResultAction<?>>();
+        /**
+         * The larger window is implemented as queue and contains object of type
+         * {@link AbstractTestResultAction}.
+         */
         ArrayDeque<AbstractTestResultAction<?>> q2 = new ArrayDeque<AbstractTestResultAction<?>>();
         for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
             if (++count > cap) {
@@ -952,35 +1147,15 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             }
             if(count>flapperTestWindow){
                 count_++;
-                shiftLargerWindowUtil(q2,testMap,dsb,projectLevel,allPackages,flapperTestWindow,certainityCount,
+                shiftLargerWindowUtil(q2,testMap,dsb,projectLevel,allPackages,flapperTestWindow,certaintyCount,
                         count_,count,false);
             }
-            if(count>certainityCount){
-                AbstractTestResultAction<?> a_ = q1.peek();
-                q1.remove();
-                hudson.tasks.junit.TestResult r_ = a_.loadXmlUtil();
-                List<CaseResult> tests = r_.getFailedTests();
-                for(CaseResult cr: tests){
-                    String caseName = cr.getFullName();
-                    if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-                    failedCount.put(caseName, failedCount.get(caseName)-1);
-                    if(failedCount.get(caseName)==0){
-                        failedCount.remove(caseName);
-                    }
-                }
-                tests = r_.getPassedTests();
-                for(CaseResult cr: tests){
-                    String caseName = cr.getFullName();
-                    if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-                    passedCount.put(caseName, passedCount.get(caseName)-1);
-                    if(passedCount.get(caseName)==0){
-                        passedCount.remove(caseName);
-                    }
-                }
+            if(count>certaintyCount){
+                shiftSmallerWindowUtil(q1, failedCount, passedCount, projectLevel, allPackages);
             }
             q1.add(a);
             q2.add(a);
-            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            hudson.tasks.junit.TestResult r = a.loadXml();
             List<CaseResult> tests = r.getFailedTests();
             for(CaseResult cr: tests){
                 String caseName = cr.getFullName();
@@ -989,7 +1164,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                     failedCount.put(caseName,0);
                 }
                 failedCount.put(caseName,failedCount.get(caseName)+1);
-                if(failedCount.get(caseName)==certainityCount){
+                if(failedCount.get(caseName)==certaintyCount){
                     if(!testMap.containsKey(caseName)){
                         testMap.put(caseName, new ArrayDeque<Integer>());
                     }
@@ -1004,7 +1179,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                     passedCount.put(caseName,0);
                 }
                 passedCount.put(caseName, passedCount.get(caseName)+1);
-                if(passedCount.get(caseName)==certainityCount){
+                if(passedCount.get(caseName)==certaintyCount){
                     if(!testMap.containsKey(caseName)){
                         testMap.put(caseName, new ArrayDeque<Integer>());
                     }
@@ -1017,19 +1192,36 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         failedCount.clear();
         while(!q2.isEmpty()){
             count_++;
-            shiftLargerWindowUtil(q2,testMap,dsb,projectLevel,allPackages,flapperTestWindow,certainityCount,
+            shiftLargerWindowUtil(q2,testMap,dsb,projectLevel,allPackages,flapperTestWindow,certaintyCount,
                     count_,count,true);
         }
         LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
         return dsb.build();
     }
 
+    /**
+     * A method to get y-axis/range axis label for the trend.
+     * @param req The HTTP request message.
+     * @return Y-axis/range axis label as a string.
+     */
     private String getYAxisLabel(StaplerRequest req){
         String trendType = getParameter(req,TRENDTYPE);
         if(trendType.equals(TREND1)||trendType.equals(TREND2)||trendType.equals(TREND3)) return "Count";
         else return "count";
     }
 
+    /**
+     * Method to create and render trends on Jenkins UI.
+     * @param req The HTTP request message.
+     * @param dataset The dataset containing each of the data series to be rendered on the generated chart.
+     * @return An object of type {@link JFreeChart} which contains information about all the properties of
+     * chart as well as the renderer object.
+     * <p>
+     * The renderer object has overridden {@link StackedAreaRenderer2#generateURL(CategoryDataset, int, int)}
+     * and {@link StackedAreaRenderer2#generateToolTip(CategoryDataset, int, int)} for generating custom url
+     * for clickable map and for generating custom tool tip to display on hovering mouse over the chart
+     * respectively.
+     */
     private JFreeChart createChart(StaplerRequest req,CategoryDataset dataset) {
 
         final String relPath = getRelPath(req);
@@ -1078,7 +1270,14 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
 
         StackedAreaRenderer ar;
 
-        if(getParameter(req,TRENDTYPE).equals(TREND2)){
+        /**
+         * "Messages" is present inside resources/hudson/tasks/test/Resource Bundle 'Messages' as properties
+         * file and "Messages" class get constructed on building the plugin inside target/generated-sources/
+         * localizer/hudson/tasks/test.
+         * <p>
+         * The Messages class is used for the purpose of internationalization.
+         */
+        if(getParameter(req,TRENDTYPE).equals(TREND1)){
             ar = new StackedAreaRenderer2() {
                 @Override
                 public String generateURL(CategoryDataset dataset, int row, int column) {
@@ -1089,8 +1288,29 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 @Override
                 public String generateToolTip(CategoryDataset dataset, int row, int column) {
                     NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
-                    AbstractTestResultAction a = label.getRun().getAction(AbstractTestResultAction.class);
-                    return String.valueOf(Messages.AbstractTestResultAction_lengthyTests(label.getRun().getDisplayName(),map.get(label)));
+                    switch (row) {
+                        case 0:
+                            return String.valueOf(Messages.AbstractTestResultAction_fail(label.getRun().getDisplayName(), failToolTip.get(label)));
+                        case 1:
+                            return String.valueOf(Messages.AbstractTestResultAction_skip(label.getRun().getDisplayName(), skipToolTip.get(label)));
+                        default:
+                            return String.valueOf(Messages.AbstractTestResultAction_test(label.getRun().getDisplayName(), totalToolTip.get(label)));
+                    }
+                }
+            };
+        }
+        else if(getParameter(req,TRENDTYPE).equals(TREND2)){
+            ar = new StackedAreaRenderer2() {
+                @Override
+                public String generateURL(CategoryDataset dataset, int row, int column) {
+                    NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
+                    return relPath+label.getRun().getNumber()+"/testReport/";
+                }
+
+                @Override
+                public String generateToolTip(CategoryDataset dataset, int row, int column) {
+                    NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
+                    return String.valueOf(Messages.AbstractTestResultAction_lengthyTests(label.getRun().getDisplayName(), lengthyToolTip.get(label)));
                 }
             };
         }
@@ -1105,8 +1325,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 @Override
                 public String generateToolTip(CategoryDataset dataset, int row, int column) {
                     NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
-                    AbstractTestResultAction a = label.getRun().getAction(AbstractTestResultAction.class);
-                    return String.valueOf(Messages.AbstractTestResultAction_flakyTests(label.getRun().getDisplayName(),toolTip.get(label)));
+                    return String.valueOf(Messages.AbstractTestResultAction_flakyTests(label.getRun().getDisplayName(), flapperToolTip.get(label)));
                 }
             };
         }
@@ -1134,9 +1353,9 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             };
         }
         plot.setRenderer(ar);
-        ar.setSeriesPaint(0,ColorPalette.RED); // Failures.
-        ar.setSeriesPaint(1,ColorPalette.YELLOW); // Skips.
-        ar.setSeriesPaint(2,ColorPalette.BLUE); // Total.
+        ar.setSeriesPaint(0,ColorPalette.RED); // First data series.
+        ar.setSeriesPaint(1,ColorPalette.YELLOW); // Second data series.
+        ar.setSeriesPaint(2,ColorPalette.BLUE); // third data series.
 
         // crop extra space around the graph
         plot.setInsets(new RectangleInsets(0,0,0,5.0));
