@@ -26,15 +26,15 @@ package hudson.tasks.test;
 import hudson.Extension;
 import hudson.Functions;
 import hudson.model.*;
+import hudson.tasks.junit.CaseResult;
+import hudson.tasks.junit.SuiteResult;
 import hudson.util.*;
 import hudson.util.ChartUtil.NumberOnlyBuildLabel;
 
 import java.awt.*;
 import java.io.IOException;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -79,6 +79,12 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     public transient AbstractBuild<?,?> owner;
 
     private Map<String,String> descriptions = new ConcurrentHashMap<String, String>();
+
+    private Map<NumberOnlyBuildLabel, Integer> map;
+
+    private Map<NumberOnlyBuildLabel,String> toolTip;
+
+    private String[] projectList;
 
     /** @since 1.545 */
     protected AbstractTestResultAction() {}
@@ -288,6 +294,61 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     }
 
     /**
+     * Start for Test Result Trends.
+     * From here onwards start the code area reposible for generating various test result trends.
+     */
+
+    public hudson.tasks.junit.TestResult loadXmlUtil(){return null;}
+
+    /**
+     * A method for getting the list of packages for all levels of hierarchy.
+     * @return Array of packages of all hierarchies.
+     */
+    public String[] getProjectList(){
+        /**
+         * If project list is already ready no need to construct again.
+         */
+        if(projectList!=null) return projectList;
+        hudson.tasks.junit.TestResult r = loadXmlUtil();
+        Collection<SuiteResult> suiteList = r.getSuites();
+        /**
+         * A set for the package names.
+         */
+        Set<String> projectSet = new HashSet<String>();
+        for(SuiteResult sr: suiteList){
+            for(CaseResult cr: sr.getCases()){
+                String caseName = cr.getFullName();
+                String projectName = "";
+                /**
+                 * Splitting package by treating "." as separator.
+                 */
+                String[] packageTree = caseName.split("[.]");
+                /**
+                 * Iterating till the length-2 of packageTree array to exclude class name and test name.
+                 */
+                for(int i=0;i<packageTree.length-2;i++){
+                    if(!projectName.isEmpty()) projectName+='.';
+                    projectName+=packageTree[i];
+                    projectSet.add(projectName);
+                }
+            }
+        }
+        /**
+         * Converting the set of package names to the corresponding array
+         * and finally sorting it in ascending order.
+         */
+        int size = projectSet.size();
+        projectList = new String[size];
+        int indx = 0;
+        for(String projectName: projectSet){
+            projectList[indx] = projectName;
+            indx++;
+        }
+        Arrays.sort(projectList);
+        return projectList;
+    }
+
+    /**
      * Generates a PNG image for the test result trend.
      */
     public void doGraph( StaplerRequest req, StaplerResponse rsp) throws IOException {
@@ -300,7 +361,58 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         if(req.checkIfModified(run.getTimestamp(),rsp))
             return;
 
-        ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
+        /**
+         * Utility method for creating various test result trends.
+         */
+        doGraphUtil(req, rsp);
+    }
+
+    /**
+     * A utility method for constructing trends based upon the query parameters passed in the
+     * request message.
+     * @param req HTTP request message for the image of trend.
+     * @param rsp HTTP respose message for the requested image.
+     * @throws IOException in case an exception occurs in
+     * {@link ChartUtil#generateGraph(StaplerRequest, StaplerResponse, JFreeChart, Area)}
+     */
+    public void doGraphUtil(StaplerRequest req, StaplerResponse rsp) throws IOException {
+        String projectLevel = getParameter(req,PROJECTLEVEL);
+        String trendType = getParameter(req,TRENDTYPE);
+        /**
+         * A binary search for verifying whether the
+         */
+        int indx = Arrays.binarySearch(projectList,projectLevel);
+        if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
+            /**
+             * This method generates the trend depicting no. of failed, passed and skipped testcases for
+             * the specified project or for all projects.
+             */
+            ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSetPerProject(req)),calcDefaultSize());
+        }
+        else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
+            /**
+             * This method generates the trends depicting no. of passed testcases which took longer duartion
+             * to run in the given build.
+             */
+            if(map==null) map = new HashMap<NumberOnlyBuildLabel, Integer>();
+            ChartUtil.generateGraph(req,rsp,createChart(req,buildLengthyTestDataset(req)),calcDefaultSize());
+        }
+        else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
+            /**
+             * This method generates the trends depicting no. of passed and failed testcases which were
+             * inconsistently failing or passing i.e. flappy behaviour.
+             */
+            if(toolTip==null) toolTip = new HashMap<NumberOnlyBuildLabel,String>();
+            ChartUtil.generateGraph(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
+        }
+        else{
+            /**
+             * This method is invoked when a user deliberately fires a wrong url with invalid query
+             * parameters and it depicts trend showing no. of passed, failed and skipped testcases for all
+             * projects.
+             */
+            ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
+        }
     }
 
     /**
@@ -309,7 +421,71 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     public void doGraphMap( StaplerRequest req, StaplerResponse rsp) throws IOException {
         if(req.checkIfModified(run.getTimestamp(),rsp))
             return;
-        ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
+        /**
+         * The Utility method to gernerate a mapping from chart coordinates to url to redirect to on
+         * clicking the trend.
+         */
+        doGraphMapUtil(req,rsp);
+    }
+
+    public void doGraphMapUtil(StaplerRequest req, StaplerResponse rsp) throws IOException{
+        String projectLevel = getParameter(req,PROJECTLEVEL);
+        String trendType = getParameter(req,TRENDTYPE);
+        int indx = Arrays.binarySearch(projectList,projectLevel);
+        if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
+            /**
+             * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
+             * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
+             */
+            ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSetPerProject(req)),calcDefaultSize());
+        }
+        else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
+            /**
+             * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
+             * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
+             */
+            if(map==null) map = new HashMap<NumberOnlyBuildLabel, Integer>();
+            ChartUtil.generateClickableMap(req,rsp,createChart(req,buildLengthyTestDataset(req)),calcDefaultSize());
+        }
+        else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
+            /**
+             * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
+             * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
+             */
+            if(toolTip==null) toolTip = new HashMap<NumberOnlyBuildLabel,String>();
+            ChartUtil.generateClickableMap(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
+        }
+        else{
+            /**
+             * This method is invoked when a user deliberately fires a wrong url with invalid query
+             * parameters and it generates a mapping for the same scenario in
+             * {@link #doGraphUtil(StaplerRequest, StaplerResponse)}.
+             */
+            ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSet(req)),calcDefaultSize());
+        }
+    }
+
+    /**
+     * A method to extract value of query parameters from url.
+     * @param req The HTTP request message.
+     * @param paramName The name of the query parameter to be extracted.
+     * @return The extracted value of the of the query parameter.
+     * <p>
+     * If the user deliberately fires url with less query parameters than those missing query parameters
+     * are assigned default values.
+     */
+    private String getParameter(StaplerRequest req, String paramName){
+        String paramValue = req.getParameter(paramName);
+        if(paramValue==null){
+            /**
+             * The default values for each of the mandatory query parameter.
+             */
+            if(paramName.equals(FAILUREONLY)) return ISFAILUREONLY;
+            else if(paramName.equals(PROJECTLEVEL)) return ALLPROJECTS;
+            else if(paramName.equals(TRENDTYPE)) return TREND1;
+            else if(paramName.equals(METRICNAME)) return METRIC4;
+        }
+        return paramValue;
     }
 
     /**
@@ -332,9 +508,23 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         else
             return new Area(500,200);
     }
+
+    /**
+     * A method to build the dataset to be used for generating trends.
+     * @param req The HTTP request message for the trend.
+     * @return An object of type {@link CategoryDataset} in which columns are the build numbers to be depicted on
+     * x-axis and rows are the different data series that need to be analysed.
+     * <p>
+     * This method creates {@link CategoryDataset} object and the created object is exactly same as the one
+     * created by {@link #buildDataSetPerProject(StaplerRequest)} with the only difference being it does not
+     * work for a particular project but only for "AllProjects" option.
+     * <p>
+     * This method is retained though its functionality is subset of functionality of
+     * {@link #buildDataSetPerProject(StaplerRequest)} as it was there in older versions also.
+     */
     
     private CategoryDataset buildDataSet(StaplerRequest req) {
-        boolean failureOnly = Boolean.valueOf(req.getParameter("failureOnly"));
+        boolean failureOnly = Boolean.valueOf(getParameter(req,FAILUREONLY));
 
         DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<String,NumberOnlyBuildLabel>();
 
@@ -355,14 +545,500 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         return dsb.build();
     }
 
+    /**
+     * A method to build dataset for the chosen project to generate trends.
+     * @param req The HTTP request message for the particular project or all projects for overall
+     *            build analysis trend type.
+     * @return An object of type {@link CategoryDataset} in which columns are the build numbers to be
+     * displayed on x-axis and rows are the different data series that need to be analysed for the chosen
+     * project.
+     * <p>
+     * This method creates {@link CategoryDataset} object for the chosen project with three data series
+     * namely "failed" for the no. of failed testcases, "skipped" for number of skipped testcases and
+     * "total" which contains no. of passed testcases. As the generated chart is stacked area chart and
+     * total is plotted on top of failed and skipped data series so, total(data series) effectively
+     * depict total number of testcases in the build.
+     */
+
+    private CategoryDataset buildDataSetPerProject(StaplerRequest req){
+        boolean failureOnly = Boolean.valueOf(getParameter(req,FAILUREONLY));
+        String projectLevel = getParameter(req,PROJECTLEVEL);
+        boolean allPackages = projectLevel.equals(ALLPROJECTS);
+        DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<String,NumberOnlyBuildLabel>();
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0;
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[] {run, cap});
+                break;
+            }
+            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            List<CaseResult> failedTests = r.getFailedTests();
+            int failCount = 0, passCount = 0, skipCount = 0;
+            for(CaseResult cr: failedTests){
+                String caseName = cr.getFullName();
+                if(allPackages||(!allPackages&&caseName.startsWith(projectLevel))){
+                    failCount++;
+                }
+            }
+            dsb.add(failCount, "failed", new NumberOnlyBuildLabel(a.run));
+            if(!failureOnly) {
+                List<CaseResult> passedTests = r.getPassedTests();
+                for(CaseResult cr: passedTests){
+                    String caseName = cr.getFullName();
+                    if(allPackages||(!allPackages&&caseName.startsWith(projectLevel))){
+                        passCount++;
+                    }
+                }
+                List<CaseResult> skippedTests = r.getSkippedTests();
+                for(CaseResult cr: skippedTests){
+                    String caseName = cr.getFullName();
+                    if(allPackages||(!allPackages&&caseName.startsWith(projectLevel))){
+                        skipCount++;
+                    }
+                }
+                dsb.add( skipCount, "skipped", new NumberOnlyBuildLabel(a.run));
+                dsb.add( passCount,"total", new NumberOnlyBuildLabel(a.run));
+            }
+        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+        return dsb.build();
+    }
+
+    private void calculateLengthyTestsByMean(float alpha, String projectName){
+        //System.out.println(Thread.currentThread().getName());
+        //System.out.println(Thread.currentThread().getId());
+        boolean allPackages = projectName.equals(ALLPROJECTS);
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0;
+        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
+                break;
+            }
+            stack.push(a);
+        }
+        Map<String,Float> allTests = new HashMap<String,Float>();
+        while(!stack.isEmpty()){
+            AbstractTestResultAction a = stack.peek();
+            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            List<CaseResult> passedTests = r.getPassedTests();
+            int lengthyTestCount = 0;
+            for(CaseResult cr: passedTests){
+                if(!allPackages&&!cr.getFullName().startsWith(projectName)) continue;
+                String testName = cr.getFullName();
+                float ewmaTime =  allTests.getOrDefault(testName,0.0f);
+                if(ewmaTime!=0.0f&&cr.getDuration()>ewmaTime){
+                    lengthyTestCount++;
+                }
+                if(ewmaTime==0.0f){
+                    allTests.put(testName,cr.getDuration());
+                }
+                else {
+                    ewmaTime = alpha * cr.getDuration() + (1 - alpha) * ewmaTime;
+                    ewmaTime = (1.0f*Math.round(100000*ewmaTime))/100000;
+                    allTests.put(testName,ewmaTime);
+                }
+            }
+            map.put(new NumberOnlyBuildLabel(a.run),lengthyTestCount);
+            stack.pop();
+        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+    }
+
+    private void calculateLengthyTestsByMax(String projectName){
+        boolean allPackages = projectName.equals(ALLPROJECTS);
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0;
+        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
+                break;
+            }
+            stack.push(a);
+        }
+        Map<String,Float> allTests = new HashMap<String,Float>();
+        while(!stack.isEmpty()){
+            AbstractTestResultAction a = stack.peek();
+            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            List<CaseResult> passedTests = r.getPassedTests();
+            int lengthyTestCount = 0;
+            for(CaseResult cr: passedTests){
+                if(!allPackages&&!cr.getFullName().startsWith(projectName)) continue;
+                String testName = cr.getFullName();
+                float maxTime =  allTests.getOrDefault(testName,0.0f);
+                if(maxTime!=0.0f&&cr.getDuration()>maxTime){
+                    lengthyTestCount++;
+                }
+                maxTime = Math.max(maxTime,cr.getDuration());
+                allTests.put(testName,maxTime);
+            }
+            map.put(new NumberOnlyBuildLabel(a.run),lengthyTestCount);
+            stack.pop();
+        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+    }
+
+    private void calculateLengthyTestsByPrev(String projectName){
+        boolean allPackages = projectName.equals(ALLPROJECTS);
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0;
+        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
+                break;
+            }
+            stack.push(a);
+        }
+        Map<String,Float> allTests = new HashMap<String,Float>();
+        while(!stack.isEmpty()){
+            AbstractTestResultAction a = stack.peek();
+            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            List<CaseResult> passedTests = r.getPassedTests();
+            int lengthyTestCount = 0;
+            for(CaseResult cr: passedTests){
+                if(!allPackages&&!cr.getFullName().startsWith(projectName)) continue;
+                String testName = cr.getFullName();
+                float prevTime =  allTests.getOrDefault(testName,0.0f);
+                if(prevTime!=0.0f&&cr.getDuration()>prevTime){
+                    lengthyTestCount++;
+                }
+                prevTime = cr.getDuration();
+                allTests.put(testName,prevTime);
+            }
+            map.put(new NumberOnlyBuildLabel(a.run),lengthyTestCount);
+            stack.pop();
+        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+    }
+
+    private void calculateLengthyTestsByThreshold(float threshold, String projectName){
+        boolean allPackages = projectName.equals(ALLPROJECTS);
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0;
+        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
+                break;
+            }
+            stack.push(a);
+        }
+        Set<String> allTests = new HashSet<String>();
+        while(!stack.isEmpty()){
+            AbstractTestResultAction a = stack.peek();
+            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            List<CaseResult> passedTests = r.getPassedTests();
+            int lengthyTestCount = 0;
+            for(CaseResult cr: passedTests){
+                if(!allPackages&&!cr.getFullName().startsWith(projectName)) continue;
+                String testName = cr.getFullName();
+                if(allTests.contains(testName)&&cr.getDuration()>threshold){
+                    lengthyTestCount++;
+                }
+                allTests.add(testName);
+            }
+            map.put(new NumberOnlyBuildLabel(a.run),lengthyTestCount);
+            stack.pop();
+        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+    }
+
+    private CategoryDataset buildLengthyTestDataset(StaplerRequest req){
+        //System.out.println(Thread.currentThread().getName());
+        //System.out.println(Thread.currentThread().getId());
+        String projectLevel = getParameter(req,PROJECTLEVEL);
+        String metricName = getParameter(req,METRICNAME);
+        DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<String,NumberOnlyBuildLabel>();
+        if(metricName.equals(METRIC4)) {
+            float threshold = 0.002f;
+            calculateLengthyTestsByThreshold(threshold,projectLevel);
+        }
+        else if(metricName.equals(METRIC2)){
+            calculateLengthyTestsByMax(projectLevel);
+        }
+        else if(metricName.equals(METRIC3)){
+            calculateLengthyTestsByPrev(projectLevel);
+        }
+        else{
+            float alpha = 0.5f;
+            calculateLengthyTestsByMean(alpha,projectLevel);
+        }
+        for(NumberOnlyBuildLabel label: map.keySet()) {
+            dsb.add(map.get(label), "Lengthy Tests", label);
+        }
+        return dsb.build();
+    }
+
+    private CategoryDataset buildFlakyTestDataset(StaplerRequest req){
+        //System.out.println(Thread.currentThread().getName());
+        //System.out.println(Thread.currentThread().getId());
+        String projectLevel = getParameter(req,PROJECTLEVEL);
+        boolean allPackages = projectLevel.equals(ALLPROJECTS);
+        DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<String,NumberOnlyBuildLabel>();
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0;
+        int flakyTestWindow = 10;
+        flakyTestWindow = Math.min(cap,flakyTestWindow);
+        Map<String,Integer> flakySet = new HashMap<String,Integer>();
+        ArrayDeque<AbstractTestResultAction<?>> q = new ArrayDeque<AbstractTestResultAction<?>>();
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[] {run, cap});
+                break;
+            }
+            if(count>flakyTestWindow){
+                AbstractTestResultAction<?> a_ = q.peek();
+                q.remove();
+                hudson.tasks.junit.TestResult r_ = a_.loadXmlUtil();
+                List<CaseResult> passedTests= r_.getPassedTests();
+                for(CaseResult cr: passedTests){
+                    String testName = cr.getFullName();
+                    if(!allPackages&&!testName.startsWith(projectLevel)) continue;
+                    flakySet.put(testName,flakySet.get(testName)-1);
+                    if(flakySet.get(testName)==0) flakySet.remove(testName);
+                }
+                List<CaseResult> failedTests = r_.getFailedTests();
+                int flakeCount = 0;
+                String toolTipString = "";
+                for(CaseResult cr: failedTests){
+                    String testName = cr.getFullName();
+                    if(!allPackages&&!testName.startsWith(projectLevel)) continue;
+                    if(flakySet.containsKey(testName)){
+                        flakeCount++;
+                        if(!toolTipString.equals("")) toolTipString+=',';
+                        toolTipString+=cr.getName();
+                    }
+                }
+                NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
+                dsb.add(flakeCount,"Flaky Tests",label);
+                toolTip.put(label,toolTipString);
+            }
+            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            List<CaseResult> passedTests = r.getPassedTests();
+            q.add(a);
+            for(CaseResult cr: passedTests){
+                String testName = cr.getFullName();
+                if(!allPackages&&!testName.startsWith(projectLevel)) continue;
+                if(!flakySet.containsKey(testName)){
+                    flakySet.put(testName,0);
+                }
+                flakySet.put(testName,flakySet.get(testName)+1);
+            }
+        }
+        while(!q.isEmpty()){
+            AbstractTestResultAction<?> a_ = q.peek();
+            q.remove();
+            hudson.tasks.junit.TestResult r_ = a_.loadXmlUtil();
+            List<CaseResult> passedTests= r_.getPassedTests();
+            for(CaseResult cr: passedTests){
+                String testName = cr.getFullName();
+                if(!allPackages&&!testName.startsWith(projectLevel)) continue;
+                flakySet.put(testName,flakySet.get(testName)-1);
+                if(flakySet.get(testName)==0) flakySet.remove(testName);
+            }
+            List<CaseResult> failedTests = r_.getFailedTests();
+            int flakeCount = 0;
+            String toolTipString = "";
+            for(CaseResult cr: failedTests){
+                String testName = cr.getFullName();
+                if(!allPackages&&!testName.startsWith(projectLevel)) continue;
+                if(flakySet.containsKey(testName)){
+                    flakeCount++;
+                    if(!toolTipString.equals("")) toolTipString+=',';
+                    toolTipString+=cr.getName();
+                }
+            }
+            NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
+            dsb.add(flakeCount,"Flaky Tests",label);
+            toolTip.put(label,toolTipString);
+        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+        return dsb.build();
+    }
+
+    private void shiftLargerWindowUtil(ArrayDeque<AbstractTestResultAction<?>> q2,
+                                       Map<String, ArrayDeque<Integer>> testMap,
+                                       DataSetBuilder<String,NumberOnlyBuildLabel> dsb,
+                                       String projectLevel, boolean allPackages,
+                                       int flapperTestWindow, int certainityCount,
+                                       int count_, int count, boolean emptying){
+        AbstractTestResultAction<?> a_ = q2.peek();
+        q2.remove();
+        hudson.tasks.junit.TestResult r_ = a_.loadXmlUtil();
+        List<CaseResult> tests = r_.getFailedTests();
+        int failFlap =0, passFlap = 0;
+        String toolTipString = "";
+        for(CaseResult cr: tests){
+            String caseName = cr.getFullName();
+            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            ArrayDeque<Integer> q = testMap.getOrDefault(caseName,null);
+            while(q!=null&&!q.isEmpty()&&q.peek()-count_<certainityCount-1){
+                q.remove();
+            }
+            if(q!=null&&!q.isEmpty()){
+                int flapCount = Math.min(flapperTestWindow,q.peek()-count_)-certainityCount+1;
+                int threshCount = (flapperTestWindow-certainityCount+1)/2;
+                if(flapCount> threshCount){
+                    failFlap++;
+                    if(!toolTipString.equals("")) toolTipString+=',';
+                    toolTipString+=cr.getName();
+                }
+            }
+            else{
+                int flapCount = Math.min(flapperTestWindow,count+1-count_)-certainityCount+1;
+                int threshCount = (flapperTestWindow-certainityCount+1)/2;
+                if(!emptying||flapCount> threshCount){
+                    failFlap++;
+                    if(!toolTipString.equals("")) toolTipString+=',';
+                    toolTipString+=cr.getName();
+                }
+            }
+        }
+        tests = r_.getPassedTests();
+        for(CaseResult cr: tests){
+            String caseName = cr.getFullName();
+            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            ArrayDeque<Integer> q = testMap.getOrDefault(caseName,null);
+            while(q!=null&&!q.isEmpty()&&q.peek()-count_<certainityCount-1){
+                q.remove();
+            }
+            if(q!=null&&!q.isEmpty()){
+                int flapCount = Math.min(flapperTestWindow,q.peek()-count_)-certainityCount+1;
+                int thershCount = (flapperTestWindow-certainityCount+1)/2;
+                if(flapCount>thershCount){
+                    passFlap++;
+                    if(!toolTipString.equals("")) toolTipString+=',';
+                    toolTipString+=cr.getName();
+                }
+            }
+            else{
+                int flapCount = Math.min(flapperTestWindow,count+1-count_)-certainityCount+1;
+                int thershCount = (flapperTestWindow-certainityCount+1)/2;
+                if(!emptying||flapCount>thershCount){
+                    passFlap++;
+                    if(!toolTipString.equals("")) toolTipString+=',';
+                    toolTipString+=cr.getName();
+                }
+            }
+        }
+        NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
+        dsb.add(passFlap+failFlap,"Test Flappers",label);
+        toolTip.put(label,toolTipString);
+    }
+
+    private CategoryDataset buildFlapperTestDataset(StaplerRequest req){
+        String projectLevel = getParameter(req,PROJECTLEVEL);
+        boolean allPackages = projectLevel.equals(ALLPROJECTS);
+        DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<String,NumberOnlyBuildLabel>();
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0, count_ = 0;
+        int flapperTestWindow = 10;
+        int certainityCount = 3;
+        //flapperTestWindow = Math.min(cap,flapperTestWindow);
+        certainityCount = Math.min(flapperTestWindow,certainityCount);
+        Map<String, ArrayDeque<Integer>> testMap = new HashMap<String, ArrayDeque<Integer>>();
+        Map<String, Integer> failedCount = new HashMap<String, Integer>();
+        Map<String, Integer> passedCount = new HashMap<String, Integer>();
+        ArrayDeque<AbstractTestResultAction<?>> q1 = new ArrayDeque<AbstractTestResultAction<?>>();
+        ArrayDeque<AbstractTestResultAction<?>> q2 = new ArrayDeque<AbstractTestResultAction<?>>();
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[] {run, cap});
+                break;
+            }
+            if(count>flapperTestWindow){
+                count_++;
+                shiftLargerWindowUtil(q2,testMap,dsb,projectLevel,allPackages,flapperTestWindow,certainityCount,
+                        count_,count,false);
+            }
+            if(count>certainityCount){
+                AbstractTestResultAction<?> a_ = q1.peek();
+                q1.remove();
+                hudson.tasks.junit.TestResult r_ = a_.loadXmlUtil();
+                List<CaseResult> tests = r_.getFailedTests();
+                for(CaseResult cr: tests){
+                    String caseName = cr.getFullName();
+                    if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+                    failedCount.put(caseName, failedCount.get(caseName)-1);
+                    if(failedCount.get(caseName)==0){
+                        failedCount.remove(caseName);
+                    }
+                }
+                tests = r_.getPassedTests();
+                for(CaseResult cr: tests){
+                    String caseName = cr.getFullName();
+                    if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+                    passedCount.put(caseName, passedCount.get(caseName)-1);
+                    if(passedCount.get(caseName)==0){
+                        passedCount.remove(caseName);
+                    }
+                }
+            }
+            q1.add(a);
+            q2.add(a);
+            hudson.tasks.junit.TestResult r = a.loadXmlUtil();
+            List<CaseResult> tests = r.getFailedTests();
+            for(CaseResult cr: tests){
+                String caseName = cr.getFullName();
+                if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+                if(!failedCount.containsKey(caseName)){
+                    failedCount.put(caseName,0);
+                }
+                failedCount.put(caseName,failedCount.get(caseName)+1);
+                if(failedCount.get(caseName)==certainityCount){
+                    if(!testMap.containsKey(caseName)){
+                        testMap.put(caseName, new ArrayDeque<Integer>());
+                    }
+                    testMap.get(caseName).add(count);
+                }
+            }
+            tests = r.getPassedTests();
+            for(CaseResult cr: tests){
+                String caseName = cr.getFullName();
+                if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+                if(!passedCount.containsKey(caseName)){
+                    passedCount.put(caseName,0);
+                }
+                passedCount.put(caseName, passedCount.get(caseName)+1);
+                if(passedCount.get(caseName)==certainityCount){
+                    if(!testMap.containsKey(caseName)){
+                        testMap.put(caseName, new ArrayDeque<Integer>());
+                    }
+                    testMap.get(caseName).add(count);
+                }
+            }
+        }
+        q1.clear();
+        passedCount.clear();
+        failedCount.clear();
+        while(!q2.isEmpty()){
+            count_++;
+            shiftLargerWindowUtil(q2,testMap,dsb,projectLevel,allPackages,flapperTestWindow,certainityCount,
+                    count_,count,true);
+        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+        return dsb.build();
+    }
+
+    private String getYAxisLabel(StaplerRequest req){
+        String trendType = getParameter(req,TRENDTYPE);
+        if(trendType.equals(TREND1)||trendType.equals(TREND2)||trendType.equals(TREND3)) return "Count";
+        else return "count";
+    }
+
     private JFreeChart createChart(StaplerRequest req,CategoryDataset dataset) {
 
         final String relPath = getRelPath(req);
+        String yaxis = getYAxisLabel(req);
 
         final JFreeChart chart = ChartFactory.createStackedAreaChart(
             null,                   // chart title
             null,                   // unused
-            "count",                  // range axis label
+            yaxis,                  // range axis label
             dataset,                  // data
             PlotOrientation.VERTICAL, // orientation
             false,                     // include legend
@@ -400,27 +1076,63 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         final NumberAxis rangeAxis = (NumberAxis) plot.getRangeAxis();
         rangeAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
 
-        StackedAreaRenderer ar = new StackedAreaRenderer2() {
-            @Override
-            public String generateURL(CategoryDataset dataset, int row, int column) {
-                NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
-                return relPath+label.getRun().getNumber()+"/testReport/";
-            }
+        StackedAreaRenderer ar;
 
-            @Override
-            public String generateToolTip(CategoryDataset dataset, int row, int column) {
-                NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
-                AbstractTestResultAction a = label.getRun().getAction(AbstractTestResultAction.class);
-                switch (row) {
-                    case 0:
-                        return String.valueOf(Messages.AbstractTestResultAction_fail(label.getRun().getDisplayName(), a.getFailCount()));
-                    case 1:
-                        return String.valueOf(Messages.AbstractTestResultAction_skip(label.getRun().getDisplayName(), a.getSkipCount()));
-                    default:
-                        return String.valueOf(Messages.AbstractTestResultAction_test(label.getRun().getDisplayName(), a.getTotalCount()));
+        if(getParameter(req,TRENDTYPE).equals(TREND2)){
+            ar = new StackedAreaRenderer2() {
+                @Override
+                public String generateURL(CategoryDataset dataset, int row, int column) {
+                    NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
+                    return relPath+label.getRun().getNumber()+"/testReport/";
                 }
-            }
-        };
+
+                @Override
+                public String generateToolTip(CategoryDataset dataset, int row, int column) {
+                    NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
+                    AbstractTestResultAction a = label.getRun().getAction(AbstractTestResultAction.class);
+                    return String.valueOf(Messages.AbstractTestResultAction_lengthyTests(label.getRun().getDisplayName(),map.get(label)));
+                }
+            };
+        }
+        else if(getParameter(req,TRENDTYPE).equals(TREND3)){
+            ar = new StackedAreaRenderer2() {
+                @Override
+                public String generateURL(CategoryDataset dataset, int row, int column) {
+                    NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
+                    return relPath+label.getRun().getNumber()+"/testReport/";
+                }
+
+                @Override
+                public String generateToolTip(CategoryDataset dataset, int row, int column) {
+                    NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
+                    AbstractTestResultAction a = label.getRun().getAction(AbstractTestResultAction.class);
+                    return String.valueOf(Messages.AbstractTestResultAction_flakyTests(label.getRun().getDisplayName(),toolTip.get(label)));
+                }
+            };
+        }
+        else{
+            ar = new StackedAreaRenderer2() {
+                @Override
+                public String generateURL(CategoryDataset dataset, int row, int column) {
+                    NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
+                    return relPath+label.getRun().getNumber()+"/testReport/";
+                }
+
+                @Override
+                public String generateToolTip(CategoryDataset dataset, int row, int column) {
+                    NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
+                    AbstractTestResultAction a = label.getRun().getAction(AbstractTestResultAction.class);
+                    switch (row) {
+                        case 0:
+                            return String.valueOf(Messages.AbstractTestResultAction_fail(label.getRun().getDisplayName(), a.getFailCount()));
+                        case 1:
+                            return String.valueOf(Messages.AbstractTestResultAction_skip(label.getRun().getDisplayName(), a.getSkipCount()));
+                        default:
+                            return String.valueOf(Messages.AbstractTestResultAction_test(label.getRun().getDisplayName(), a.getTotalCount()));
+                    }
+                }
+            };
+        }
         plot.setRenderer(ar);
         ar.setSeriesPaint(0,ColorPalette.RED); // Failures.
         ar.setSeriesPaint(1,ColorPalette.YELLOW); // Skips.
@@ -509,4 +1221,17 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         }
     }
 
+    private static final String ISFAILUREONLY = "false";
+    private static final String ALLPROJECTS = "AllProjects";
+    private static final String TREND1 = "BuildAnalysis";
+    private static final String TREND2 = "LengthyTests";
+    private static final String TREND3 = "FlakyTests";
+    private static final String METRIC1 = "mean";
+    private static final String METRIC2 = "max";
+    private static final String METRIC3 = "prev";
+    private static final String METRIC4 = "threshold";
+    private static final String FAILUREONLY = "failureOnly";
+    private static final String PROJECTLEVEL = "projectLevel";
+    private static final String TRENDTYPE = "trendType";
+    private static final String METRICNAME = "metricName";
 }
