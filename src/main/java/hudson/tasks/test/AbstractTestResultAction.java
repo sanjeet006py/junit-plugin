@@ -943,105 +943,94 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     }
 
     /**
-     * A utility method for shifting the larger window involved in determining whether the given testcase
-     * is a test flapper or not.
-     * @param q2 The larger window is implemented as queue and contains object of type
-     *           {@link AbstractTestResultAction}.
-     * @param testMap A mapping from the testcase to the queue of build indices where testcase is the key and
-     *                its corresponding value is the queue of build indices at which the testcase failed or
-     *                passed consecutively.
-     * @param dsb A dataset used for generating trend of no. of flaky testcases in a build.
-     * @param projectLevel The particular chosen project or all projects.
-     * @param allPackages True if all projects need to be considered else false.
-     * @param flapperTestWindow Size of larger window.
-     * @param certaintyCount Size of smaller window. If at any point within larger window this window
-     *                       contains only passed or failed instances of a given testcase, then that
-     *                       testcase is not examined anymore in the larger window.
-     * @param count_ count of no. of steps the larger window has shifted.
-     * @param count Total count of no. of builds examined. It can be considered as 1-based index of a build.
-     * @param emptying True if all the builds have been examined by larger window and larger window is being
-     *                 emptied.
-     * <p>
-     * As soon as we reach end of larger window or smaller window contains all passed or failed instances
-     * of a testcase, testcase is declared as test flapper if:
-     *                 no. of steps smaller window moved > (flapperTestWindow-certaintyCount+1)/2
+     *
+     * @param tests
+     * @param testMap
+     * @param largerWindowCount
+     * @param projectLevel
+     * @param allPackages
+     * @param flapperTestWindow
+     * @param certaintyCount
+     * @param count_
+     * @param emptying
+     * @param toolTipString
+     * @return
      */
+    private Pair<String,Integer> computeCertainty(List<CaseResult> tests,
+                                                  Map<String, ArrayDeque<Pair<Integer,Integer>>> testMap,
+                                                  Map<String,Pair<Integer,Integer>> largerWindowCount,
+                                                  String projectLevel, boolean allPackages,
+                                                  int flapperTestWindow, int certaintyCount,
+                                                  int count_, boolean emptying, String toolTipString){
+        int flapperCount = 0;
+        for(CaseResult cr: tests){
+            String caseName = cr.getFullName();
+            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            /*
+             * A queue of build indices where smaller window contained all failed or passed instances of
+             * the testcase.
+             */
+            ArrayDeque<Pair<Integer,Integer>> q = testMap.getOrDefault(caseName,null);
+            Pair<Integer,Integer> testCount = largerWindowCount.get(caseName);
+            int windowTestCount = testCount.first-testCount.second;
+            int threshCount = ((flapperTestWindow-certaintyCount+1)/2)+(certaintyCount-1);
+            while(q!=null&&!q.isEmpty()&&q.peek().first-count_<certaintyCount-1){
+                q.remove();
+            }
+            if(q!=null&&!q.isEmpty()){
+                int flapCount = windowTestCount;
+                if(q.peek().first-count_<flapperTestWindow){
+                    flapCount = q.peek().second-testCount.second-1;
+                }
+                if(flapCount> threshCount){
+                    flapperCount++;
+                    if(!toolTipString.equals("")) toolTipString+=',';
+                    toolTipString+=cr.getName();
+                }
+            }
+            else{
+                if(!emptying||windowTestCount> threshCount){
+                    flapperCount++;
+                    if(!toolTipString.equals("")) toolTipString+=',';
+                    toolTipString+=cr.getName();
+                }
+            }
+            Pair<Integer,Integer> range = largerWindowCount.get(caseName);
+            range.second++;
+            largerWindowCount.put(caseName,range);
+        }
+        return new Pair<String,Integer>(toolTipString,flapperCount);
+    }
+
     private void shiftLargerWindowUtil(ArrayDeque<AbstractTestResultAction<?>> q2,
-                                       Map<String, ArrayDeque<Integer>> testMap,
+                                       Map<String, ArrayDeque<Pair<Integer,Integer>>> testMap,
+                                       Map<String,Pair<Integer,Integer>> largerWindowCount,
                                        DataSetBuilder<String,NumberOnlyBuildLabel> dsb,
                                        String projectLevel, boolean allPackages,
                                        int flapperTestWindow, int certaintyCount,
-                                       int count_, int count, boolean emptying){
+                                       int count_, boolean emptying){
         AbstractTestResultAction<?> a_ = q2.peek();
         q2.remove();
         hudson.tasks.junit.TestResult r_ = a_.loadXml();
         List<CaseResult> tests = r_.getFailedTests();
-        int failFlap =0, passFlap = 0;
-        /*
-         * Variable to hold string to be displayed as tooltip i.e. the string displayed when we hover mouse
-         * over the trend.
-         */
+        int failFlap = 0, passFlap = 0;
         String toolTipString = "";
-        for(CaseResult cr: tests){
-            String caseName = cr.getFullName();
-            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-            /*
-             * A queue of build indices where smaller window contained all failed or passed instances of
-             * the testcase.
-             */
-            ArrayDeque<Integer> q = testMap.getOrDefault(caseName,null);
-            while(q!=null&&!q.isEmpty()&&q.peek()-count_<certaintyCount-1){
-                q.remove();
-            }
-            if(q!=null&&!q.isEmpty()){
-                int flapCount = Math.min(flapperTestWindow,q.peek()-count_)-certaintyCount+1;
-                int threshCount = (flapperTestWindow-certaintyCount+1)/2;
-                if(flapCount> threshCount){
-                    failFlap++;
-                    if(!toolTipString.equals("")) toolTipString+=',';
-                    toolTipString+=cr.getName();
-                }
-            }
-            else{
-                int flapCount = Math.min(flapperTestWindow,count+1-count_)-certaintyCount+1;
-                int threshCount = (flapperTestWindow-certaintyCount+1)/2;
-                if(!emptying||flapCount> threshCount){
-                    failFlap++;
-                    if(!toolTipString.equals("")) toolTipString+=',';
-                    toolTipString+=cr.getName();
-                }
-            }
-        }
+        Pair<String,Integer> failFlapper = computeCertainty(tests,testMap,largerWindowCount,projectLevel, allPackages,
+                flapperTestWindow, certaintyCount,count_,emptying,toolTipString);
         tests = r_.getPassedTests();
+        failFlap = failFlapper.second;
+        toolTipString = failFlapper.first;
+        failFlapper = computeCertainty(tests,testMap,largerWindowCount,projectLevel,allPackages, flapperTestWindow,
+                certaintyCount,count_,emptying,toolTipString);
+        passFlap = failFlapper.second;
+        toolTipString = failFlapper.first;
+        tests = r_.getSkippedTests();
         for(CaseResult cr: tests){
             String caseName = cr.getFullName();
             if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-            /*
-             * A queue of build indices where smaller window contained all failed or passed instances of
-             * the testcase.
-             */
-            ArrayDeque<Integer> q = testMap.getOrDefault(caseName,null);
-            while(q!=null&&!q.isEmpty()&&q.peek()-count_<certaintyCount-1){
-                q.remove();
-            }
-            if(q!=null&&!q.isEmpty()){
-                int flapCount = Math.min(flapperTestWindow,q.peek()-count_)-certaintyCount+1;
-                int threshCount = (flapperTestWindow-certaintyCount+1)/2;
-                if(flapCount> threshCount){
-                    passFlap++;
-                    if(!toolTipString.equals("")) toolTipString+=',';
-                    toolTipString+=cr.getName();
-                }
-            }
-            else{
-                int flapCount = Math.min(flapperTestWindow,count+1-count_)-certaintyCount+1;
-                int threshCount = (flapperTestWindow-certaintyCount+1)/2;
-                if(!emptying||flapCount> threshCount){
-                    passFlap++;
-                    if(!toolTipString.equals("")) toolTipString+=',';
-                    toolTipString+=cr.getName();
-                }
-            }
+            Pair<Integer,Integer> range = largerWindowCount.get(caseName);
+            range.second++;
+            largerWindowCount.put(caseName,range);
         }
         NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
         dsb.add(passFlap+failFlap,"Test Flappers",label);
@@ -1053,40 +1042,89 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     }
 
     /**
-     * A utility method for shifting the smaller window involved in determining whether the given testcase
-     * is a test flapper or not.
-     * @param q1 The smaller window is implemented as queue and contains object of type
-     *           {@link AbstractTestResultAction}.
-     * @param failedCount A mapping from testcase to no. of failed instances of that testcase in smaller
-     *                    window.
-     * @param passedCount A mapping from testcase to no. of passed instances of that testcase in smaller
-     *                    window.
-     * @param projectLevel The particular chosen project or all projects.
-     * @param allPackages True if all projects need to be considered else false.
+     *
+     * @param tests
+     * @param testCount
+     * @param projectLevel
+     * @param allPackages
      */
-    private void shiftSmallerWindowUtil(ArrayDeque<AbstractTestResultAction<?>> q1,
-                                        Map<String, Integer> failedCount,
-                                        Map<String, Integer> passedCount,
+    private void shiftSmallerWindowUtil(List<CaseResult> tests, Map<String, Integer> testCount,
                                         String projectLevel, boolean allPackages){
-        AbstractTestResultAction<?> a_ = q1.peek();
-        q1.remove();
-        hudson.tasks.junit.TestResult r_ = a_.loadXml();
-        List<CaseResult> tests = r_.getFailedTests();
         for(CaseResult cr: tests){
             String caseName = cr.getFullName();
             if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-            failedCount.put(caseName, failedCount.get(caseName)-1);
-            if(failedCount.get(caseName)==0){
-                failedCount.remove(caseName);
+            testCount.put(caseName, testCount.get(caseName)-1);
+            if(testCount.get(caseName)==0){
+                testCount.remove(caseName);
             }
         }
-        tests = r_.getPassedTests();
+    }
+
+    /**
+     *
+     * @param type
+     * @param failedCount
+     * @param passedCount
+     * @param skippedCount
+     * @param caseName
+     * @param certaintyCount
+     * @return
+     */
+    private boolean onlyPassOrOnlyFail(char type, Map<String, Integer> failedCount,Map<String, Integer> passedCount,
+                                       Map<String, Integer> skippedCount, String caseName, int certaintyCount){
+        if((type=='f'&&failedCount.get(caseName)+skippedCount.getOrDefault(caseName,0)==certaintyCount))
+            return true;
+        else if(type=='p'&&passedCount.get(caseName)+skippedCount.getOrDefault(caseName,0)==certaintyCount)
+            return true;
+        else if(type=='s'&&passedCount.getOrDefault(caseName,0)+skippedCount.get(caseName)==certaintyCount)
+            return true;
+        else if(type=='s'&&failedCount.getOrDefault(caseName,0)+skippedCount.get(caseName)==certaintyCount)
+            return true;
+        return false;
+    }
+
+    /**
+     *
+     * @param tests
+     * @param failedCount
+     * @param passedCount
+     * @param skippedCount
+     * @param smallerWindowCount
+     * @param largerWindowCount
+     * @param testMap
+     * @param projectLevel
+     * @param allPackages
+     * @param certaintyCount
+     * @param count
+     * @param type
+     */
+    private void addToLargerWindow(List<CaseResult> tests, Map<String, Integer> failedCount,
+                                   Map<String, Integer> passedCount, Map<String, Integer> skippedCount,
+                                   Map<String,Integer> smallerWindowCount,
+                                   Map<String,Pair<Integer,Integer>> largerWindowCount,
+                                   Map<String, ArrayDeque<Pair<Integer,Integer>>> testMap,
+                                   String projectLevel, boolean allPackages, int certaintyCount, int count,char type){
         for(CaseResult cr: tests){
             String caseName = cr.getFullName();
             if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-            passedCount.put(caseName, passedCount.get(caseName)-1);
-            if(passedCount.get(caseName)==0){
-                passedCount.remove(caseName);
+            if(type=='f'){
+                failedCount.put(caseName, failedCount.getOrDefault(caseName, 0) + 1);
+            }
+            else if(type=='p'){
+                passedCount.put(caseName, passedCount.getOrDefault(caseName, 0) + 1);
+            }
+            else if(type=='s'){
+                skippedCount.put(caseName, skippedCount.getOrDefault(caseName, 0) + 1);
+            }
+            smallerWindowCount.put(caseName,smallerWindowCount.getOrDefault(caseName,0)+1);
+            Pair<Integer,Integer> range = largerWindowCount.getOrDefault(caseName,new Pair<Integer,Integer>(0,0));
+            range.first++;
+            largerWindowCount.put(caseName,range);
+            if(onlyPassOrOnlyFail(type,failedCount,passedCount,skippedCount,caseName,certaintyCount)){
+                if(!testMap.containsKey(caseName)){
+                    testMap.put(caseName, new ArrayDeque<Pair<Integer,Integer>>());
+                }
+                testMap.get(caseName).add(new Pair<Integer,Integer>(count,smallerWindowCount.get(caseName)));
             }
         }
     }
@@ -1117,7 +1155,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * its corresponding value is the queue of build indices at which the testcase failed or
          * passed consecutively.
          */
-        Map<String, ArrayDeque<Integer>> testMap = new HashMap<String, ArrayDeque<Integer>>();
+        Map<String, ArrayDeque<Pair<Integer,Integer>>> testMap = new HashMap<String, ArrayDeque<Pair<Integer,Integer>>>();
         /*
          * A mapping from testcase to no. of failed instances of that testcase in smaller
          * window.
@@ -1128,6 +1166,8 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * window.
          */
         Map<String, Integer> passedCount = new HashMap<String, Integer>();
+
+        Map<String, Integer> skippedCount = new HashMap<String, Integer>();
         /*
          * The smaller window is implemented as queue and contains object of type
          * {@link AbstractTestResultAction}.
@@ -1138,6 +1178,8 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * {@link AbstractTestResultAction}.
          */
         ArrayDeque<AbstractTestResultAction<?>> q2 = new ArrayDeque<AbstractTestResultAction<?>>();
+        Map<String,Integer> smallerWindowCount = new HashMap<String, Integer>();
+        Map<String,Pair<Integer,Integer>> largerWindowCount = new HashMap<String, Pair<Integer,Integer>>();
         for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[] {run, cap});
@@ -1145,53 +1187,42 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             }
             if(count>flapperTestWindow){
                 count_++;
-                shiftLargerWindowUtil(q2,testMap,dsb,projectLevel,allPackages,flapperTestWindow,certaintyCount,
-                        count_,count,false);
+                shiftLargerWindowUtil(q2,testMap,largerWindowCount,dsb,projectLevel,allPackages,flapperTestWindow,certaintyCount,
+                        count_, false);
             }
             if(count>certaintyCount){
-                shiftSmallerWindowUtil(q1, failedCount, passedCount, projectLevel, allPackages);
+                AbstractTestResultAction<?> a_ = q1.peek();
+                q1.remove();
+                hudson.tasks.junit.TestResult r_ = a_.loadXml();
+                List<CaseResult> tests = r_.getFailedTests();
+                shiftSmallerWindowUtil(tests, failedCount, projectLevel, allPackages);
+                tests = r_.getPassedTests();
+                shiftSmallerWindowUtil(tests, passedCount, projectLevel, allPackages);
+                tests = r_.getSkippedTests();
+                shiftSmallerWindowUtil(tests, skippedCount, projectLevel, allPackages);
             }
             q1.add(a);
             q2.add(a);
             hudson.tasks.junit.TestResult r = a.loadXml();
             List<CaseResult> tests = r.getFailedTests();
-            for(CaseResult cr: tests){
-                String caseName = cr.getFullName();
-                if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-                if(!failedCount.containsKey(caseName)){
-                    failedCount.put(caseName,0);
-                }
-                failedCount.put(caseName,failedCount.get(caseName)+1);
-                if(failedCount.get(caseName)==certaintyCount){
-                    if(!testMap.containsKey(caseName)){
-                        testMap.put(caseName, new ArrayDeque<Integer>());
-                    }
-                    testMap.get(caseName).add(count);
-                }
-            }
+            addToLargerWindow(tests,failedCount,passedCount,skippedCount,smallerWindowCount,largerWindowCount,testMap,
+                    projectLevel,allPackages,certaintyCount,count,'f');
             tests = r.getPassedTests();
-            for(CaseResult cr: tests){
-                String caseName = cr.getFullName();
-                if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-                if(!passedCount.containsKey(caseName)){
-                    passedCount.put(caseName,0);
-                }
-                passedCount.put(caseName, passedCount.get(caseName)+1);
-                if(passedCount.get(caseName)==certaintyCount){
-                    if(!testMap.containsKey(caseName)){
-                        testMap.put(caseName, new ArrayDeque<Integer>());
-                    }
-                    testMap.get(caseName).add(count);
-                }
-            }
+            addToLargerWindow(tests,failedCount,passedCount,skippedCount,smallerWindowCount,largerWindowCount,testMap,
+                    projectLevel,allPackages,certaintyCount,count,'p');
+            tests = r.getSkippedTests();
+            addToLargerWindow(tests,failedCount,passedCount,skippedCount,smallerWindowCount,largerWindowCount,testMap,
+                    projectLevel,allPackages,certaintyCount,count,'s');
         }
         q1.clear();
         passedCount.clear();
         failedCount.clear();
+        skippedCount.clear();
+        smallerWindowCount.clear();
         while(!q2.isEmpty()){
             count_++;
-            shiftLargerWindowUtil(q2,testMap,dsb,projectLevel,allPackages,flapperTestWindow,certaintyCount,
-                    count_,count,true);
+            shiftLargerWindowUtil(q2,testMap, largerWindowCount,dsb, projectLevel, allPackages, flapperTestWindow,
+                    certaintyCount, count_, true);
         }
         LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
         return dsb.build();
@@ -1434,6 +1465,16 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 }
             }
             return null;
+        }
+    }
+
+    private static final class Pair<A,B>{
+        A first;
+        B second;
+
+        Pair(A first, B second){
+            this.first = first;
+            this.second = second;
         }
     }
 
