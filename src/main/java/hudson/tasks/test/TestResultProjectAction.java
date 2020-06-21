@@ -150,6 +150,27 @@ public class TestResultProjectAction implements Action {
         rsp.sendRedirect("..");
     }
 
+    public void doFailFlapFlip(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException{
+        String orderBy = FAILMETRIC;
+
+        Cookie[] cookies = req.getCookies();
+        if(cookies!=null) {
+            for (Cookie cookie : cookies) {
+                if(cookie.getName().equals(ORDER_BY_COOKIE))
+                    orderBy = cookie.getValue();
+            }
+        }
+
+        if(orderBy.equals(FAILMETRIC)){
+            orderBy = FLAPMETRIC;
+        }
+        else{
+            orderBy = FAILMETRIC;
+        }
+        addCookie(req,rsp,ORDER_BY_COOKIE,orderBy);
+        rsp.sendRedirect("..");
+    }
+
     /**
      * Method to modify cookies for displaying requested trend.
      * @param req The HTTP request message incorporating api call this method.
@@ -230,10 +251,13 @@ public class TestResultProjectAction implements Action {
     private static final String PROJECT_LEVEL_COOKIE = "TestResultAction_projectLevel";
     private static final String TREND_TYPE_COOKIE = "TestResultAction_trendType";
     private static final String METRIC_NAME_COOKIE = "TestResultAction_metricName";
+    private static final String ORDER_BY_COOKIE = "TestResultAction_orderBy";
     private static final String PROJECTS = "AllProjects";
     private static final String TREND1 = "BuildAnalysis";
     private static final String TREND2 = "LengthyTests_mean";
     private static final String TREND3 = "FlakyTests";
+    private static final String FAILMETRIC = "fail";
+    private static final String FLAPMETRIC = "flap";
     private static final String PROJECTLEVEL = "projectLevel";
     private static final String TRENDTYPE = "trendType";
 }

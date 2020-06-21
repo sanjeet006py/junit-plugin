@@ -39,6 +39,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Nonnull;
+
+import hudson.util.ColorPalette;
 import jenkins.model.RunAction2;
 import jenkins.model.lazy.LazyBuildMixIn;
 import org.jfree.chart.ChartFactory;
@@ -46,11 +48,18 @@ import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.CategoryAxis;
 import org.jfree.chart.axis.CategoryLabelPositions;
 import org.jfree.chart.axis.NumberAxis;
-import org.jfree.chart.plot.CategoryPlot;
-import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.labels.XYToolTipGenerator;
+import org.jfree.chart.plot.*;
 import org.jfree.chart.renderer.category.StackedAreaRenderer;
+import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.chart.urls.XYURLGenerator;
 import org.jfree.data.category.CategoryDataset;
+import org.jfree.data.xy.XYDataset;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
+import org.jfree.ui.RectangleAnchor;
 import org.jfree.ui.RectangleInsets;
+import org.jfree.ui.TextAnchor;
 import org.jvnet.localizer.Localizable;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
@@ -70,7 +79,6 @@ import org.kohsuke.stapler.export.ExportedBean;
 public abstract class AbstractTestResultAction<T extends AbstractTestResultAction> implements HealthReportingAction, RunAction2 {
 
     private static final Logger LOGGER = Logger.getLogger(AbstractTestResultAction.class.getName());
-
     /**
      * @since 1.2-beta-1
      */
@@ -83,12 +91,12 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     /**
      * Tool tips for "Overall Build Analysis" trend type.
      */
-    private Map<NumberOnlyBuildLabel,Integer> failToolTip, totalToolTip, skipToolTip;
+    private Map<NumberOnlyBuildLabel,String> failToolTip, totalToolTip, skipToolTip;
 
     /**
      * Tool tips for "Lengthy Tests" trend type.
      */
-    private Map<NumberOnlyBuildLabel, Integer> lengthyToolTip;
+    private Map<NumberOnlyBuildLabel, String> lengthyToolTip;
 
     /**
      * Tool tips for "Flaky Tests" trend type.
@@ -100,6 +108,11 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      * project.
      */
     private String[] projectList;
+
+    private List<String> mostFailedTestCases;
+
+    private Map<Integer,ArrayList<Integer>> flapperInfo;
+    private Map<Integer, Integer> flapperCountToolTip;
 
     /** @since 1.545 */
     protected AbstractTestResultAction() {}
@@ -331,7 +344,10 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         /*
          * A set for the package names.
          */
-        Set<String> projectSet = new HashSet<String>();
+        Map<Integer,HashSet<String>> projectSet = new HashMap<Integer,HashSet<String>>();
+        int projectCount = 0;
+        int projectCountLimit = 50;
+        int levelCap = Integer.MAX_VALUE;
         for(SuiteResult sr: suiteList){
             for(CaseResult cr: sr.getCases()){
                 String caseName = cr.getFullName();
@@ -345,10 +361,23 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 /*
                  * Iterating till the length-2 of packageTree array to exclude class name and test name.
                  */
-                for(int i=0;i<packageTree.length-2;i++){
+                for(int level=0;level<packageTree.length-2&&level<=levelCap;level++){
                     if(!projectName.isEmpty()) projectName+='.';
-                    projectName+=packageTree[i];
-                    projectSet.add(projectName);
+                    projectName+=packageTree[level];
+                    if(!projectSet.containsKey(level)){
+                       projectSet.put(level,new HashSet<String>());
+                    }
+                    if(!projectSet.get(level).contains(projectName)){
+                        projectSet.get(level).add(projectName);
+                        projectCount++;
+                    }
+                    if(projectCount>projectCountLimit){
+                        int levelToDel = projectSet.size()-1;
+                        int deletionSize = projectSet.get(levelToDel).size();
+                        projectSet.remove(levelToDel);
+                        projectCount-=deletionSize;
+                        levelCap = projectSet.size()-1;
+                    }
                 }
             }
         }
@@ -357,12 +386,14 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * Converting the set of package names to the corresponding array
          * and finally sorting it in ascending order.
          */
-        int size = projectSet.size();
-        projectList = new String[size];
-        int indx = 0;
-        for(String projectName: projectSet){
-            projectList[indx] = projectName;
-            indx++;
+        projectList = new String[projectCount];
+        int index = 0;
+        for(int level: projectSet.keySet()){
+            Set<String> projectSetPerLevel = projectSet.get(level);
+            for(String projectName: projectSetPerLevel){
+                projectList[index] = projectName;
+                index++;
+            }
         }
         Arrays.sort(projectList);
         return projectList;
@@ -403,35 +434,36 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * A binary search for verifying whether the given project level is valid or not. If found in the
          * array or is equal to "AllProjects" the valid else not.
          */
-        int indx = Arrays.binarySearch(projectList,projectLevel);
-        if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
+        int index = Arrays.binarySearch(projectList,projectLevel);
+        if((index>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
 
             /*
              * This method generates the trend depicting no. of failed, passed and skipped testcases for
              * the specified project or for all projects.
              */
-            if(failToolTip ==null) failToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
-            if(totalToolTip ==null) totalToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
-            if(skipToolTip ==null) skipToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(failToolTip ==null) failToolTip = new HashMap<>();
+            if(totalToolTip ==null) totalToolTip = new HashMap<>();
+            if(skipToolTip ==null) skipToolTip = new HashMap<>();
             ChartUtil.generateGraph(req,rsp,createChart(req,buildDataSetPerProject(req)),calcDefaultSize());
         }
-        else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
+        else if((index>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
 
             /*
              * This method generates the trends depicting no. of passed testcases which took longer duration
              * to run in the given build.
              */
-            if(lengthyToolTip ==null) lengthyToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(lengthyToolTip ==null) lengthyToolTip = new HashMap<>();
             ChartUtil.generateGraph(req,rsp,createChart(req,buildLengthyTestDataset(req)),calcDefaultSize());
         }
-        else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
+        else if((index>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
 
             /*
              * This method generates the trends depicting no. of passed and failed testcases which were
              * inconsistently failing or passing i.e. flappy behaviour.
              */
-            if(flapperToolTip ==null) flapperToolTip = new HashMap<NumberOnlyBuildLabel,String>();
-            ChartUtil.generateGraph(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
+            if(flapperToolTip ==null) flapperToolTip = new HashMap<>();
+            //ChartUtil.generateGraph(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
+            ChartUtil.generateGraph(req,rsp,createXYChart(req,buildFlapperDataset(req)),calcDefaultSize());
         }
         else{
 
@@ -469,35 +501,36 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     public void doGraphMapUtil(StaplerRequest req, StaplerResponse rsp) throws IOException{
         String projectLevel = getParameter(req,PROJECTLEVEL);
         String trendType = getParameter(req,TRENDTYPE);
-        int indx = Arrays.binarySearch(projectList,projectLevel);
-        if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
+        int index = Arrays.binarySearch(projectList,projectLevel);
+        if((index>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND1)){
 
             /*
              * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
              * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
              */
-            if(failToolTip ==null) failToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
-            if(totalToolTip ==null) totalToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
-            if(skipToolTip ==null) skipToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(failToolTip ==null) failToolTip = new HashMap<>();
+            if(totalToolTip ==null) totalToolTip = new HashMap<>();
+            if(skipToolTip ==null) skipToolTip = new HashMap<>();
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildDataSetPerProject(req)),calcDefaultSize());
         }
-        else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
+        else if((index>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND2)){
 
             /*
              * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
              * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
              */
-            if(lengthyToolTip ==null) lengthyToolTip = new HashMap<NumberOnlyBuildLabel, Integer>();
+            if(lengthyToolTip ==null) lengthyToolTip = new HashMap<>();
             ChartUtil.generateClickableMap(req,rsp,createChart(req,buildLengthyTestDataset(req)),calcDefaultSize());
         }
-        else if((indx>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
+        else if((index>=0||projectLevel.equals(ALLPROJECTS))&&trendType.equals(TREND3)){
 
             /*
              * This method generates a mapping from chart coordinates to url, to redirect to on clicking the
              * trend generated by same conditions in {@link #doGraphUtil(StaplerRequest, StaplerResponse)}
              */
-            if(flapperToolTip ==null) flapperToolTip = new HashMap<NumberOnlyBuildLabel,String>();
-            ChartUtil.generateClickableMap(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
+            if(flapperToolTip ==null) flapperToolTip = new HashMap<>();
+            //ChartUtil.generateClickableMap(req,rsp,createChart(req,buildFlapperTestDataset(req)),calcDefaultSize());
+            ChartUtil.generateClickableMap(req,rsp,createXYChart(req,buildFlapperDataset(req)),calcDefaultSize());
         }
         else{
 
@@ -530,6 +563,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             else if(paramName.equals(PROJECTLEVEL)) return ALLPROJECTS;
             else if(paramName.equals(TRENDTYPE)) return TREND1;
             else if(paramName.equals(METRICNAME)) return METRIC4;
+            else if(paramName.equals(ORDERBY)) return FAILMETRIC;
         }
         return paramValue;
     }
@@ -571,7 +605,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     private CategoryDataset buildDataSet(StaplerRequest req) {
         boolean failureOnly = Boolean.valueOf(getParameter(req,FAILUREONLY));
 
-        DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<String,NumberOnlyBuildLabel>();
+        DataSetBuilder<String,NumberOnlyBuildLabel> dsb = new DataSetBuilder<>();
 
         int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
         int count = 0;
@@ -588,6 +622,42 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         }
         LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
         return dsb.build();
+    }
+
+    private void buildDataSetPerProjectUtil(List<CaseResult> tests, boolean allPackages, String projectLevel,
+                                            DataSetBuilder<String,NumberOnlyBuildLabel> dsb,
+                                            AbstractTestResultAction<?> a, String seriesName){
+        String toolTipString = "";
+        int maxToolTipLength = 100;
+        boolean generateToolTip = true;
+        int count = 0;
+        for(CaseResult cr: tests){
+            String caseName = cr.getFullName();
+            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            count++;
+            caseName = cr.getName();
+            if(!generateToolTip) continue;
+            else if(toolTipString.length()+caseName.length()>maxToolTipLength){
+                generateToolTip = false;
+                toolTipString+=",...";
+                continue;
+            }
+            if(!toolTipString.equals("")) toolTipString+= ", ";
+            toolTipString+=caseName;
+        }
+        NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a.run);
+        dsb.add(count, seriesName, label);
+
+        /*
+         * Also being stored in {@link #failToolTip} in order to generate tooltips on hovering mouse over the
+         * trend.
+         */
+        if(seriesName.equals("failed"))
+            failToolTip.put(label,toolTipString);
+        else if(seriesName.equals("skipped"))
+            skipToolTip.put(label,toolTipString);
+        else
+            totalToolTip.put(label,toolTipString);
     }
 
     /**
@@ -618,52 +688,13 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             }
             hudson.tasks.junit.TestResult r = a.loadXml();
             List<CaseResult> failedTests = r.getFailedTests();
-            int failCount = 0, passCount = 0, skipCount = 0;
-            for(CaseResult cr: failedTests){
-                String caseName = cr.getFullName();
-                if(allPackages||(!allPackages&&caseName.startsWith(projectLevel))){
-                    failCount++;
-                }
-            }
-            NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a.run);
-            dsb.add(failCount, "failed", label);
-
-            /*
-             * Also being stored in {@link #failToolTip} in order to generate tooltips on hovering mouse over the
-             * trend.
-             */
-            failToolTip.put(label,failCount);
+            buildDataSetPerProjectUtil(failedTests,allPackages,projectLevel,dsb,a,"failed");
             if(!failureOnly) {
-                List<CaseResult> passedTests = r.getPassedTests();
-                for(CaseResult cr: passedTests){
-                    String caseName = cr.getFullName();
-                    if(allPackages||(!allPackages&&caseName.startsWith(projectLevel))){
-                        passCount++;
-                    }
-                }
                 List<CaseResult> skippedTests = r.getSkippedTests();
-                for(CaseResult cr: skippedTests){
-                    String caseName = cr.getFullName();
-                    if(allPackages||(!allPackages&&caseName.startsWith(projectLevel))){
-                        skipCount++;
-                    }
-                }
-                label = new NumberOnlyBuildLabel(a.run);
-                dsb.add( skipCount, "skipped", label);
+                buildDataSetPerProjectUtil(skippedTests,allPackages,projectLevel,dsb,a,"skipped");
 
-                /*
-                 * Also being stored in {@link #skipToolTip} in order to generate tooltips on hovering mouse over the
-                 * trend.
-                 */
-                skipToolTip.put(label,skipCount);
-                label = new NumberOnlyBuildLabel(a.run);
-                dsb.add( passCount,"total", label);
-
-                /*
-                 * Also being stored in {@link #totalToolTip} in order to generate tooltips on hovering mouse over the
-                 * trend.
-                 */
-                totalToolTip.put(label,passCount+failCount+skipCount);
+                List<CaseResult> passedTests = r.getPassedTests();
+                buildDataSetPerProjectUtil(passedTests,allPackages,projectLevel,dsb,a,"total");
             }
         }
         LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
@@ -805,7 +836,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * builds in descending order of build number and push each of the builds onto the stack. Next
          * pop each element of the stack and traverse the builds in ascending order of build number.
          */
-        Deque<AbstractTestResultAction> stack = new ArrayDeque<AbstractTestResultAction>();
+        Deque<AbstractTestResultAction<?>> stack = new ArrayDeque<AbstractTestResultAction<?>>();
         for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
@@ -820,12 +851,17 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          */
         Map<String,Float> allTests = new HashMap<String,Float>();
         while(!stack.isEmpty()){
-            AbstractTestResultAction a = stack.peek();
+            AbstractTestResultAction<?> a = stack.peek();
             hudson.tasks.junit.TestResult r = a.loadXml();
             List<CaseResult> passedTests = r.getPassedTests();
             int lengthyTestCount = 0;
+            boolean generateToolTip = true;
+            int maxToolTipLength = 100;
+            String toolTipString = "";
             for(CaseResult cr: passedTests){
-                if(!allPackages&&!cr.getFullName().startsWith(projectLevel)) continue;
+                String caseName = cr.getFullName();
+                if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+                int moreLengthyTests = 0;
 
                 /*
                  * Default metric for determining whether a testcase took longer to run is "mean" i.e.
@@ -836,18 +872,28 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                  */
                 if(metricName.equals(METRIC4)) {
                     float threshold = 0.002f;
-                    lengthyTestCount += calculateLengthyTestsByThreshold(threshold, cr);
+                    moreLengthyTests += calculateLengthyTestsByThreshold(threshold, cr);
                 }
                 else if(metricName.equals(METRIC2)){
-                    lengthyTestCount += calculateLengthyTestsByMax(cr, allTests);
+                    moreLengthyTests += calculateLengthyTestsByMax(cr, allTests);
                 }
                 else if(metricName.equals(METRIC3)){
-                    lengthyTestCount += calculateLengthyTestsByPrev(cr, allTests);
+                    moreLengthyTests += calculateLengthyTestsByPrev(cr, allTests);
                 }
                 else{
                     float alpha = 0.5f;
-                    lengthyTestCount += calculateLengthyTestsByMean(alpha, cr, allTests);
+                    moreLengthyTests += calculateLengthyTestsByMean(alpha, cr, allTests);
                 }
+                lengthyTestCount+=moreLengthyTests;
+                caseName = cr.getName();
+                if(!generateToolTip||moreLengthyTests==0) continue;
+                else if(toolTipString.length()+caseName.length()>maxToolTipLength){
+                    generateToolTip = false;
+                    toolTipString+=",...";
+                    continue;
+                }
+                if(!toolTipString.equals("")) toolTipString+= ", ";
+                toolTipString+=caseName;
             }
             NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a.run);
             dsb.add(lengthyTestCount, "Lengthy Tests", label);
@@ -856,7 +902,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
              * Also being stored in {@link #lengthyToolTip} in order to generate tooltips on hovering mouse
              * over the trend.
              */
-            lengthyToolTip.put(label,lengthyTestCount);
+            lengthyToolTip.put(label,toolTipString);
             stack.pop();
         }
         LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
@@ -892,14 +938,23 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         }
         List<CaseResult> failedTests = r_.getFailedTests();
         int flakeCount = 0;
+        boolean generateToolTip = true;
+        int maxToolTipLength = 100;
         String toolTipString = "";
         for(CaseResult cr: failedTests){
             String testName = cr.getFullName();
             if(!allPackages&&!testName.startsWith(projectLevel)) continue;
             if(flakySet.containsKey(testName)){
                 flakeCount++;
-                if(!toolTipString.equals("")) toolTipString+=',';
-                toolTipString+=cr.getName();
+                testName = cr.getName();
+                if(!generateToolTip) continue;
+                else if(toolTipString.length()+testName.length()>maxToolTipLength){
+                    generateToolTip = false;
+                    toolTipString+=",...";
+                    continue;
+                }
+                if(!toolTipString.equals("")) toolTipString+= ", ";
+                toolTipString+=testName;
             }
         }
         NumberOnlyBuildLabel label = new NumberOnlyBuildLabel(a_.run);
@@ -1004,8 +1059,10 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                                                   Map<String,Pair<Integer,Integer>> largerWindowCount,
                                                   String projectLevel, boolean allPackages,
                                                   int flapperTestWindow, int certaintyCount,
-                                                  int count_, boolean emptying, String toolTipString){
+                                                  int count_, boolean emptying, String toolTipString,
+                                                  int maxToolTipLength){
         int flapperCount = 0;
+        boolean generateToolTip = true;
         for(CaseResult cr: tests){
             String caseName = cr.getFullName();
             if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
@@ -1033,15 +1090,29 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 }
                 if(flapCount> threshCount){
                     flapperCount++;
-                    if(!toolTipString.equals("")) toolTipString+=',';
-                    toolTipString+=cr.getName();
+                    String testName = cr.getName();
+                    if(!generateToolTip) continue;
+                    else if(toolTipString.length()+testName.length()>maxToolTipLength){
+                        generateToolTip = false;
+                        toolTipString+=",...";
+                        continue;
+                    }
+                    if(!toolTipString.equals("")) toolTipString+= ", ";
+                    toolTipString+=testName;
                 }
             }
             else{
                 if(!emptying||windowTestCount> threshCount){
                     flapperCount++;
-                    if(!toolTipString.equals("")) toolTipString+=',';
-                    toolTipString+=cr.getName();
+                    String testName = cr.getName();
+                    if(!generateToolTip) continue;
+                    else if(toolTipString.length()+testName.length()>maxToolTipLength){
+                        generateToolTip = false;
+                        toolTipString+=",...";
+                        continue;
+                    }
+                    if(!toolTipString.equals("")) toolTipString+= ", ";
+                    toolTipString+=testName;
                 }
             }
             Pair<Integer,Integer> range = largerWindowCount.get(caseName);
@@ -1090,8 +1161,9 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         List<CaseResult> tests = r_.getFailedTests();
         int failFlap = 0, passFlap = 0;
         String toolTipString = "";
+        int maxToolTipLength = 100;
         Pair<String,Integer> failFlapper = computeCertainty(tests,testMap,largerWindowCount,projectLevel, allPackages,
-                flapperTestWindow, certaintyCount,count_,emptying,toolTipString);
+                flapperTestWindow, certaintyCount,count_,emptying,toolTipString,maxToolTipLength/2);
 
         /*
          * A list of passed testcases.
@@ -1100,7 +1172,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         failFlap = failFlapper.second;
         toolTipString = failFlapper.first;
         failFlapper = computeCertainty(tests,testMap,largerWindowCount,projectLevel,allPackages, flapperTestWindow,
-                certaintyCount,count_,emptying,toolTipString);
+                certaintyCount,count_,emptying,toolTipString,maxToolTipLength);
         passFlap = failFlapper.second;
         toolTipString = failFlapper.first;
 
@@ -1353,6 +1425,140 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         return dsb.build();
     }
 
+    private void shiftBuildHistoryUtil(ArrayDeque<AbstractTestResultAction<?>> buildHistory,
+                                       Map<String, ArrayDeque<AbstractTestResultAction<?>>> testsHistory,
+                                       boolean allPackages, String projectLevel){
+        AbstractTestResultAction<?> a = buildHistory.peek();
+        buildHistory.remove();
+        int count = 0;
+        hudson.tasks.junit.TestResult r = a.loadXml();
+        List<CaseResult> tests = r.getFailedTests();
+        for(CaseResult caseResult: tests){
+            String caseName = caseResult.getFullName();
+            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+            ArrayDeque<AbstractTestResultAction<?>> testHistory = testsHistory.get(caseName);
+            while(testHistory!=null&&!testHistory.isEmpty()&&testHistory.peek().run.number>=a.run.number){
+                testHistory.remove();
+            }
+            if(testHistory!=null&&!testHistory.isEmpty()){
+                count++;
+            }
+        }
+        flapperCountToolTip.put(a.run.number,count);
+    }
+
+    private XYDataset buildFlapperDataset(StaplerRequest req){
+        String projectLevel = getParameter(req,PROJECTLEVEL);
+        boolean allPackages = projectLevel.equals(ALLPROJECTS);
+        String orderBy = getParameter(req,ORDERBY);
+        XYSeriesCollection dataset = new XYSeriesCollection();
+        List<XYSeries> failSeries = new ArrayList<>();
+        int testsToDisplay = 20;
+        int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
+        int count = 0;
+        Map<String, ArrayList<Integer>> testInfo = new HashMap<String, ArrayList<Integer>>();
+        mostFailedTestCases = new ArrayList<String>();
+        XYSeries xySeries = new XYSeries(0);
+        flapperCountToolTip = new HashMap<>();
+        int buildHistorySize = 10;
+        ArrayDeque<AbstractTestResultAction<?>> buildHistory = new ArrayDeque<>();
+        Map<String, ArrayDeque<AbstractTestResultAction<?>>> testsHistory = new HashMap<>();
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+            if (++count > cap) {
+                LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[] {run, cap});
+                break;
+            }
+            if(this.run.number-a.run.number+1>buildHistorySize){
+                shiftBuildHistoryUtil(buildHistory, testsHistory, allPackages, projectLevel);
+            }
+            buildHistory.add(a);
+            hudson.tasks.junit.TestResult r = a.loadXml();
+            List<CaseResult> tests = r.getFailedTests();
+            for(CaseResult caseResult: tests){
+                String caseName = caseResult.getFullName();
+                if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+                if(!testInfo.containsKey(caseName)){
+                    testInfo.put(caseName,new ArrayList<Integer>());
+                    List<Integer> infoList = testInfo.get(caseName);
+                    infoList.add(0);
+                    infoList.add(0);
+                    infoList.add(-1);
+                }
+                List<Integer> infoList = testInfo.get(caseName);
+                infoList.set(0,infoList.get(0)+1);
+                if(infoList.get(2)==1){
+                    infoList.set(1,infoList.get(1)+1);
+                    ArrayDeque<AbstractTestResultAction<?>> testHistory = testsHistory.getOrDefault(caseName, new ArrayDeque<>());
+                    testHistory.add(a);
+                    testsHistory.put(caseName,testHistory);
+                }
+                infoList.set(2,0);
+                infoList.add(a.run.number);
+            }
+            tests = r.getPassedTests();
+            for(CaseResult caseResult: tests){
+                String caseName = caseResult.getFullName();
+                if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
+                List<Integer> infoList = testInfo.get(caseName);
+                if(infoList!=null){
+                    infoList.set(2,1);
+                }
+            }
+            xySeries.add(a.run.number,null);
+        }
+        while(!buildHistory.isEmpty()){
+            shiftBuildHistoryUtil(buildHistory, testsHistory, allPackages, projectLevel);
+        }
+        List<Pair<Integer, String>> testFailCount = new ArrayList<>();
+        for(String caseName: testInfo.keySet()){
+            if(orderBy.equals(FLAPMETRIC)){
+                testFailCount.add(new Pair<Integer, String>(testInfo.get(caseName).get(1),caseName));
+            }
+            else{
+                testFailCount.add(new Pair<Integer, String>(testInfo.get(caseName).get(0),caseName));
+            }
+        }
+        testFailCount.sort(new PairComparator<Integer, String>());
+        testsToDisplay = Math.min(testsToDisplay,testFailCount.size());
+        flapperInfo = new HashMap<>();
+        mostFailedTestCases = new ArrayList<>(testsToDisplay);
+        xySeries.add(this.run.number+0.5,testsToDisplay+0.5);
+        failSeries.add(xySeries);
+        for(int i = 1;i<=testsToDisplay;i++){
+            xySeries = new XYSeries(i);
+            mostFailedTestCases.add("");
+            failSeries.add(xySeries);
+        }
+        for(int testIndex =1; testIndex<=testsToDisplay;testIndex++){
+            Pair<Integer, String> testCase = testFailCount.get(testIndex-1);
+            String caseName = testCase.second;
+            int y = testsToDisplay-testIndex+1;
+            List<Integer> infoList = testInfo.get(caseName);
+            mostFailedTestCases.set(y-1,caseName);
+            ArrayList<Integer> flapperInfoList = new ArrayList<>();
+            flapperInfoList.add(infoList.get(0));
+            flapperInfoList.add(infoList.get(1));
+            flapperInfo.put(y,flapperInfoList);
+            for(int i = 3;i<infoList.size();i++){
+                int x = infoList.get(i);
+                if(i>3){
+                    int previousX = infoList.get(i-1);
+                    if(previousX - x > 1){
+                        xySeries = failSeries.get(testIndex);
+                        xySeries.add(x+1,null);
+                    }
+                }
+                xySeries = failSeries.get(testIndex);
+                xySeries.add(x,y);
+            }
+        }
+        LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[] {run, count});
+        for(int testIndex = 0;testIndex<=testsToDisplay;testIndex++){
+            dataset.addSeries(failSeries.get(testIndex));
+        }
+        return dataset;
+    }
+
     /**
      * A method to get y-axis/range axis label for the trend.
      * @param req The HTTP request message.
@@ -1443,11 +1649,11 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                     NumberOnlyBuildLabel label = (NumberOnlyBuildLabel) dataset.getColumnKey(column);
                     switch (row) {
                         case 0:
-                            return String.valueOf(Messages.AbstractTestResultAction_fail(label.getRun().getDisplayName(), failToolTip.get(label)));
+                            return String.valueOf(Messages.AbstractTestResultAction_perProject(label.getRun().getDisplayName(), failToolTip.get(label)));
                         case 1:
-                            return String.valueOf(Messages.AbstractTestResultAction_skip(label.getRun().getDisplayName(), skipToolTip.get(label)));
+                            return String.valueOf(Messages.AbstractTestResultAction_perProject(label.getRun().getDisplayName(), skipToolTip.get(label)));
                         default:
-                            return String.valueOf(Messages.AbstractTestResultAction_test(label.getRun().getDisplayName(), totalToolTip.get(label)));
+                            return String.valueOf(Messages.AbstractTestResultAction_perProject(label.getRun().getDisplayName(), totalToolTip.get(label)));
                     }
                 }
             };
@@ -1522,6 +1728,103 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         return relPath;
     }
 
+    private JFreeChart createXYChart(StaplerRequest req,XYDataset dataset){
+        final String relPath = getRelPath(req);
+        String yAxis = "Test Cases";
+        String xAxis = "Build Number";
+        final JFreeChart chart = ChartFactory.createXYLineChart(
+                null,         // chart title
+                xAxis,             // domain axis label
+                yAxis,            // range axis label
+                dataset,          // data
+                PlotOrientation.VERTICAL, // orientation
+                false,      // legends
+                true,       // tooltips
+                false);       // urls
+
+        chart.setBackgroundPaint(Color.WHITE);
+
+        XYPlot plot = chart.getXYPlot();
+        plot.setBackgroundPaint(Color.WHITE);
+        plot.setOutlinePaint(null);
+        plot.setForegroundAlpha(0.8f);
+        plot.setRangeGridlinesVisible(true);
+        plot.setRangeGridlinePaint(Color.black);
+        plot.setAxisOffset(new RectangleInsets(5.0,5.0,5.0,5.0));
+        NumberAxis domainAxis = (NumberAxis)plot.getDomainAxis();
+        domainAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
+        domainAxis.setLowerMargin(0.0);
+        domainAxis.setUpperMargin(0.0);
+        domainAxis.setTickMarkOutsideLength(5.0f);
+        NumberAxis rangeAxis = (NumberAxis)plot.getRangeAxis();
+        rangeAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
+        rangeAxis.setTickLabelsVisible(false);
+        rangeAxis.setAutoRangeIncludesZero(true);
+        rangeAxis.setTickMarkOutsideLength(5.0f);
+        rangeAxis.setLabelInsets(new RectangleInsets(10.0,10.0,10.0,10.0));
+
+        int testsToDisplay = plot.getSeriesCount()-1;
+
+        XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer();
+
+        XYToolTipGenerator toolTipGenerator = new XYToolTipGenerator2(){
+            @Override
+            public String generateToolTip(XYDataset dataset, int series, int item) {
+                int x = (int)(dataset.getXValue(series,item)+0.5);
+                int y = (int)(dataset.getYValue(series,item)+0.5);
+                String caseName = mostFailedTestCases.get(y-1)+"\n";
+                String totalFailCount = flapperInfo.get(y).get(0).toString()+"\n";
+                String flapCount = flapperInfo.get(y).get(1).toString()+"\n";
+                String flapperCount = flapperCountToolTip.get(x).toString();
+                String build = "#"+x;
+                return String.valueOf(Messages.AbstractTestResultAction_testInfo(build,caseName,totalFailCount,flapCount,flapperCount));
+            }
+        };
+
+        XYURLGenerator urlGenerator = new XYToolTipGenerator2(){
+            @Override
+            public String generateURL(XYDataset dataset, int series, int item) {
+                int x = (int)(dataset.getXValue(series,item)+0.5);
+                return relPath+x+"/testReport/";
+            }
+        };
+
+        Marker flapCountMarker, flapperCountMarker;
+        Font markerFont = new Font("Arial",Font.BOLD,12);
+
+        for(int testIndex = 0;testIndex<=testsToDisplay;testIndex++){
+            boolean isShapeVisible = !(testIndex==0);
+            renderer.setSeriesShapesFilled(testIndex,isShapeVisible);
+            renderer.setSeriesShapesVisible(testIndex,isShapeVisible);
+            renderer.setSeriesToolTipGenerator(testIndex,toolTipGenerator);
+            renderer.setSeriesPaint(testIndex,Color.RED);
+            renderer.setSeriesStroke(testIndex,new BasicStroke(4.0f));
+            if(testIndex==0) continue;
+            flapCountMarker = new ValueMarker(testIndex);
+            String flapCount = flapperInfo.get(testIndex).get(1).toString();
+            flapCountMarker.setPaint(Color.BLACK);
+            flapCountMarker.setLabel(flapCount);
+            flapCountMarker.setLabelAnchor(RectangleAnchor.BOTTOM_RIGHT);
+            flapCountMarker.setLabelTextAnchor(TextAnchor.TOP_RIGHT);
+            flapCountMarker.setLabelFont(markerFont);
+            //plot.addRangeMarker(flapCountMarker);
+        }
+        for(int buildNumber: flapperCountToolTip.keySet()){
+            flapperCountMarker = new ValueMarker(buildNumber);
+            String flapperCount = flapperCountToolTip.get(buildNumber).toString();
+            flapperCountMarker.setPaint(Color.BLACK);
+            flapperCountMarker.setLabel(flapperCount);
+            flapperCountMarker.setLabelAnchor(RectangleAnchor.TOP_RIGHT);
+            flapperCountMarker.setLabelTextAnchor(TextAnchor.TOP_LEFT);
+            flapperCountMarker.setLabelFont(markerFont);
+            //plot.addDomainMarker(flapperCountMarker);
+        }
+        renderer.setURLGenerator(urlGenerator);
+        plot.setRenderer(renderer);
+
+        return chart;
+    }
+
     /**
      * {@link TestObject}s do not have their own persistence mechanism, so updatable data of {@link TestObject}s
      * need to be persisted by the owning {@link AbstractTestResultAction}, and this method and
@@ -1593,6 +1896,15 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         }
     }
 
+    private static final class PairComparator<A extends Comparable<? super A>,B extends Comparable<? super B>> implements Comparator<Pair<A,B>>{
+        public int compare(Pair<A,B> pair1, Pair<A,B> pair2){
+            if(pair1.first.compareTo(pair2.first)!=0){
+                return -1*pair1.first.compareTo(pair2.first);
+            }
+            else return pair1.second.compareTo(pair2.second);
+        }
+    }
+
     /**
      * A generic class to encapsulate a pair of objects where each object can be any type.
      * @param <A> Type of the first object.
@@ -1622,6 +1934,18 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         }
     }
 
+    public static class XYToolTipGenerator2 implements XYToolTipGenerator, XYURLGenerator {
+        @Override
+        public String generateToolTip(XYDataset dataset, int series, int item) {
+            return null;
+        }
+
+        @Override
+        public String generateURL(XYDataset dataset, int series, int item) {
+            return null;
+        }
+    }
+
     private static final String ISFAILUREONLY = "false";
     private static final String ALLPROJECTS = "AllProjects";
     private static final String TREND1 = "BuildAnalysis";
@@ -1631,8 +1955,11 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
     private static final String METRIC2 = "max";
     private static final String METRIC3 = "prev";
     private static final String METRIC4 = "threshold";
+    private static final String FLAPMETRIC = "flap";
+    private static final String FAILMETRIC = "fail";
     private static final String FAILUREONLY = "failureOnly";
     private static final String PROJECTLEVEL = "projectLevel";
     private static final String TRENDTYPE = "trendType";
     private static final String METRICNAME = "metricName";
+    private static final String ORDERBY = "orderBy";
 }

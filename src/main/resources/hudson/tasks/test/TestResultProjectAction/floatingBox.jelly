@@ -32,6 +32,7 @@ THE SOFTWARE.
       <j:set var="project" value="${h.getCookie(request,'TestResultAction_projectLevel').value}" />
       <j:set var="trend" value="${h.getCookie(request,'TestResultAction_trendType').value}" />
       <j:set var="metric" value="${h.getCookie(request,'TestResultAction_metricName').value}" />
+      <j:set var="order" value="${h.getCookie(request,'TestResultAction_orderBy').value}" />
 
       <!-- If any of the above declared variables equals null then default value is assigned to the corresponding
       query parameter in url. -->
@@ -75,21 +76,43 @@ THE SOFTWARE.
           <j:set var="metricQueryString2" value="&amp;metricName=Default" />
         </j:otherwise>
         </j:choose>
+        <j:choose>
+        <j:when test="${order!=null}">
+          <j:set var="orderQueryString1" value="&amp;orderBy=${order}" />
+          <j:set var="orderQueryString2" value="&amp;orderBy=${order}" />
+        </j:when>
+        <j:otherwise>
+          <j:set var="orderQueryString1" value="&amp;orderBy=fail" />
+          <j:set var="orderQueryString2" value="&amp;orderBy=fail" />
+        </j:otherwise>
+        </j:choose>
       <div class="test-trend-caption">
         ${%Test Result Trend}
       </div>
       <div>
-        <img src="test/trend${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1}" lazymap="test/trendMap${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1}" alt="[Test result trend chart]"/>
+        <img src="test/trend${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" lazymap="test/trendMap${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" alt="[Test result trend chart]"/>
       </div>
       <div style="text-align:right">
-        <a href="test/flipTrend">
-          <j:choose>
-            <!-- needs to strip whitespace here -->
-            <j:when test="${mode}">(${%show test # and failure #})</j:when>
-            <j:otherwise>(${%just show failures})</j:otherwise>
-          </j:choose>
-        </a> <st:nbsp/>
-        <a href="test/?width=800&amp;height=600${trendQueryString2+projectQueryString2+typeQueryString2+metricQueryString2}">${%enlarge}</a>
+        <j:if test="${trend=='BuildAnalysis'}">
+            <a href="test/flipTrend">
+              <j:choose>
+                <!-- needs to strip whitespace here -->
+                <j:when test="${mode}">(${%show test # and failure #})</j:when>
+                <j:otherwise>(${%just show failures})</j:otherwise>
+              </j:choose>
+            </a>
+        </j:if>
+        <j:if test="${trend=='FlakyTests'}">
+            <a href="test/failFlapFlip">
+              <j:choose>
+                <!-- needs to strip whitespace here -->
+                <j:when test="${order=='fail'}">(${%order by flappers})</j:when>
+                <j:otherwise>(${%order by failures})</j:otherwise>
+              </j:choose>
+            </a>
+        </j:if>
+        <st:nbsp/>
+        <a href="test/?width=800&amp;height=600${trendQueryString2+projectQueryString2+typeQueryString2+metricQueryString2+orderQueryString2}">${%enlarge}</a>
       </div>
 
       <!-- Two drop down menus generated using HTML for selecting the project and the trend type. Unless expanded,
@@ -125,7 +148,7 @@ THE SOFTWARE.
             <label for="trendMenu">Choose Trend Type:</label><st:nbsp/>
             <select name="trendType" id="trendMenu">
                 <j:choose>
-                    <j:when test="${trend=='AllProjects'}">
+                    <j:when test="${trend=='BuildAnalysis'}">
                         <option value="BuildAnalysis" selected="selected">Overall Build Analysis</option>
                     </j:when>
                     <j:otherwise>
