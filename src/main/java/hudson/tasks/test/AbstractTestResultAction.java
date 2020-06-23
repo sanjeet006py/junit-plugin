@@ -900,18 +900,15 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         return dsb.build();
     }
 
-    private void shiftBuildHistoryUtil(ArrayDeque<AbstractTestResultAction<?>> buildHistory,
-                                       Map<String, ArrayDeque<AbstractTestResultAction<?>>> testsHistory,
-                                       boolean allPackages, String projectLevel){
-        AbstractTestResultAction<?> a = buildHistory.peek();
+    private void shiftBuildHistoryUtil(ArrayDeque<Pair<AbstractTestResultAction<?>,HashSet<Integer>>> buildHistory,
+                                       Map<Integer, ArrayDeque<AbstractTestResultAction<?>>> testsHistory){
+        Pair<AbstractTestResultAction<?>,HashSet<Integer>> lastBuild = buildHistory.peek();
         buildHistory.remove();
+        AbstractTestResultAction<?> a = lastBuild.first;
+        HashSet<Integer> buildSet = lastBuild.second;
         int count = 0;
-        hudson.tasks.junit.TestResult r = a.loadXml();
-        List<CaseResult> tests = r.getFailedTests();
-        for(CaseResult caseResult: tests){
-            String caseName = caseResult.getFullName();
-            if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-            ArrayDeque<AbstractTestResultAction<?>> testHistory = testsHistory.get(caseName);
+        for(Integer testCaseIndex: buildSet){
+            ArrayDeque<AbstractTestResultAction<?>> testHistory = testsHistory.get(testCaseIndex);
             while(testHistory!=null&&!testHistory.isEmpty()&&testHistory.peek().run.number>=a.run.number){
                 testHistory.remove();
             }
@@ -931,66 +928,74 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         int testsToDisplay = 20;
         int cap = Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE);
         int count = 0;
-        Map<String, ArrayList<Integer>> testInfo = new HashMap<String, ArrayList<Integer>>();
+        Map<Integer, ArrayList<Integer>> testInfo = new HashMap<Integer, ArrayList<Integer>>();
+        Map<String, Integer> testCaseIndex = new HashMap<>();
         mostFailedTestCases = new ArrayList<String>();
         XYSeries xySeries = new XYSeries(0);
         flapperCountToolTip = new HashMap<>();
         int buildHistorySize = 10;
-        ArrayDeque<AbstractTestResultAction<?>> buildHistory = new ArrayDeque<>();
-        Map<String, ArrayDeque<AbstractTestResultAction<?>>> testsHistory = new HashMap<>();
+        ArrayDeque<Pair<AbstractTestResultAction<?>,HashSet<Integer>>> buildHistory = new ArrayDeque<>();
+        Map<Integer, ArrayDeque<AbstractTestResultAction<?>>> testsHistory = new HashMap<>();
         for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[] {run, cap});
                 break;
             }
             if(this.run.number-a.run.number+1>buildHistorySize){
-                shiftBuildHistoryUtil(buildHistory, testsHistory, allPackages, projectLevel);
+                shiftBuildHistoryUtil(buildHistory, testsHistory);
             }
-            buildHistory.add(a);
+            HashSet<Integer> buildSet = new HashSet<>();
             hudson.tasks.junit.TestResult r = a.loadXml();
             List<CaseResult> tests = r.getFailedTests();
             for(CaseResult caseResult: tests){
                 String caseName = caseResult.getFullName();
                 if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-                if(!testInfo.containsKey(caseName)){
-                    testInfo.put(caseName,new ArrayList<Integer>());
-                    List<Integer> infoList = testInfo.get(caseName);
+                if(!testCaseIndex.containsKey(caseName)){
+                    int index = testCaseIndex.size()+1;
+                    testCaseIndex.put(caseName,index);
+                    testInfo.put(index,new ArrayList<Integer>());
+                    List<Integer> infoList = testInfo.get(index);
                     infoList.add(0);
                     infoList.add(0);
                     infoList.add(-1);
                 }
-                List<Integer> infoList = testInfo.get(caseName);
+                int index = testCaseIndex.get(caseName);
+                List<Integer> infoList = testInfo.get(index);
                 infoList.set(0,infoList.get(0)+1);
                 if(infoList.get(2)==1){
                     infoList.set(1,infoList.get(1)+1);
-                    ArrayDeque<AbstractTestResultAction<?>> testHistory = testsHistory.getOrDefault(caseName, new ArrayDeque<>());
+                    ArrayDeque<AbstractTestResultAction<?>> testHistory = testsHistory.getOrDefault(index, new ArrayDeque<>());
                     testHistory.add(a);
-                    testsHistory.put(caseName,testHistory);
+                    testsHistory.put(index,testHistory);
                 }
                 infoList.set(2,0);
                 infoList.add(a.run.number);
+                buildSet.add(index);
             }
             tests = r.getPassedTests();
             for(CaseResult caseResult: tests){
                 String caseName = caseResult.getFullName();
                 if(!allPackages&&!caseName.startsWith(projectLevel)) continue;
-                List<Integer> infoList = testInfo.get(caseName);
-                if(infoList!=null){
+                Integer index = testCaseIndex.get(caseName);
+                if(index!=null){
+                    List<Integer> infoList = testInfo.get(index);
                     infoList.set(2,1);
                 }
             }
             xySeries.add(a.run.number,null);
+            buildHistory.add(new Pair<>(a, buildSet));
         }
         while(!buildHistory.isEmpty()){
-            shiftBuildHistoryUtil(buildHistory, testsHistory, allPackages, projectLevel);
+            shiftBuildHistoryUtil(buildHistory, testsHistory);
         }
         List<Pair<Integer, String>> testFailCount = new ArrayList<>();
-        for(String caseName: testInfo.keySet()){
+        for(String caseName: testCaseIndex.keySet()){
+            int index = testCaseIndex.get(caseName);
             if(orderBy.equals(FLAPMETRIC)){
-                testFailCount.add(new Pair<Integer, String>(testInfo.get(caseName).get(1),caseName));
+                testFailCount.add(new Pair<Integer, String>(testInfo.get(index).get(1),caseName));
             }
             else{
-                testFailCount.add(new Pair<Integer, String>(testInfo.get(caseName).get(0),caseName));
+                testFailCount.add(new Pair<Integer, String>(testInfo.get(index).get(0),caseName));
             }
         }
         testFailCount.sort(new PairComparator<Integer, String>());
@@ -1008,7 +1013,8 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             Pair<Integer, String> testCase = testFailCount.get(testIndex-1);
             String caseName = testCase.second;
             int y = testsToDisplay-testIndex+1;
-            List<Integer> infoList = testInfo.get(caseName);
+            int index = testCaseIndex.get(caseName);
+            List<Integer> infoList = testInfo.get(index);
             mostFailedTestCases.set(y-1,caseName);
             ArrayList<Integer> flapperInfoList = new ArrayList<>();
             flapperInfoList.add(infoList.get(0));
