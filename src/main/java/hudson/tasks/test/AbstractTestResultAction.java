@@ -364,7 +364,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      *
      * @return Array of packages of all hierarchies.
      */
-    public final String[] getProjectList() {
+    public String[] getProjectList() {
 
         /*
          * If project list is already ready no need to construct again.
