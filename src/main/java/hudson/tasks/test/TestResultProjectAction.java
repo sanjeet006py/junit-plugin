@@ -1,18 +1,18 @@
 /*
  * The MIT License
- * 
+ *
  * Copyright (c) 2004-2009, Sun Microsystems, Inc., Kohsuke Kawaguchi
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -51,23 +51,24 @@ import java.util.List;
 public class TestResultProjectAction implements Action {
     /**
      * Project that owns this action.
+     *
      * @since 1.2-beta-1
      */
-    public final Job<?,?> job;
+    public final Job<?, ?> job;
 
     @Deprecated
-    public final AbstractProject<?,?> project;
+    public final AbstractProject<?, ?> project;
 
     /**
      * @since 1.2-beta-1
      */
-    public TestResultProjectAction(Job<?,?> job) {
+    public TestResultProjectAction(Job<?, ?> job) {
         this.job = job;
         project = job instanceof AbstractProject ? (AbstractProject) job : null;
     }
 
     @Deprecated
-    public TestResultProjectAction(AbstractProject<?,?> project) {
+    public TestResultProjectAction(AbstractProject<?, ?> project) {
         this((Job) project);
     }
 
@@ -87,13 +88,14 @@ public class TestResultProjectAction implements Action {
     }
 
     public AbstractTestResultAction getLastTestResultAction() {
-        final Run<?,?> tb = job.getLastSuccessfulBuild();
+        final Run<?, ?> tb = job.getLastSuccessfulBuild();
 
-        Run<?,?> b = job.getLastBuild();
-        while(b!=null) {
+        Run<?, ?> b = job.getLastBuild();
+        while (b != null) {
             AbstractTestResultAction a = b.getAction(AbstractTestResultAction.class);
-            if(a!=null && (!b.isBuilding())) return a;
-            if(b==tb)
+            if (a != null && (!b.isBuilding()))
+                return a;
+            if (b == tb)
                 // if even the last successful build didn't produce the test result,
                 // that means we just don't have any tests configured.
                 return null;
@@ -106,10 +108,10 @@ public class TestResultProjectAction implements Action {
     /**
      * Display the test result trend.
      */
-    public void doTrend( StaplerRequest req, StaplerResponse rsp ) throws IOException, ServletException {
+    public void doTrend(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         AbstractTestResultAction a = getLastTestResultAction();
-        if(a!=null)
-            a.doGraph(req,rsp);
+        if (a != null)
+            a.doGraph(req, rsp);
         else
             rsp.setStatus(HttpServletResponse.SC_NOT_FOUND);
     }
@@ -117,10 +119,10 @@ public class TestResultProjectAction implements Action {
     /**
      * Generates the clickable map HTML fragment for {@link #doTrend(StaplerRequest, StaplerResponse)}.
      */
-    public void doTrendMap( StaplerRequest req, StaplerResponse rsp ) throws IOException, ServletException {
+    public void doTrendMap(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         AbstractTestResultAction a = getLastTestResultAction();
-        if(a!=null)
-            a.doGraphMap(req,rsp);
+        if (a != null)
+            a.doGraphMap(req, rsp);
         else
             rsp.setStatus(HttpServletResponse.SC_NOT_FOUND);
     }
@@ -128,14 +130,14 @@ public class TestResultProjectAction implements Action {
     /**
      * Changes the test result report display mode.
      */
-    public void doFlipTrend( StaplerRequest req, StaplerResponse rsp ) throws IOException, ServletException {
+    public void doFlipTrend(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         boolean failureOnly = false;
 
         // check the current preference value
         Cookie[] cookies = req.getCookies();
-        if(cookies!=null) {
+        if (cookies != null) {
             for (Cookie cookie : cookies) {
-                if(cookie.getName().equals(FAILURE_ONLY_COOKIE))
+                if (cookie.getName().equals(FAILURE_ONLY_COOKIE))
                     failureOnly = Boolean.parseBoolean(cookie.getValue());
             }
         }
@@ -144,105 +146,110 @@ public class TestResultProjectAction implements Action {
         failureOnly = !failureOnly;
 
         // set the updated value
-        addCookie(req,rsp,FAILURE_ONLY_COOKIE,String.valueOf(failureOnly));
+        addCookie(req, rsp, FAILURE_ONLY_COOKIE, String.valueOf(failureOnly));
 
         // back to the project page
         rsp.sendRedirect("..");
     }
 
-    public void doFailFlapFlip(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException{
+    public void doFailFlapFlip(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         String orderBy = FAILMETRIC;
 
         Cookie[] cookies = req.getCookies();
-        if(cookies!=null) {
+        if (cookies != null) {
             for (Cookie cookie : cookies) {
-                if(cookie.getName().equals(ORDER_BY_COOKIE))
+                if (cookie.getName().equals(ORDER_BY_COOKIE))
                     orderBy = cookie.getValue();
             }
         }
 
-        if(orderBy.equals(FAILMETRIC)){
+        if (orderBy.equals(FAILMETRIC)) {
             orderBy = FLAPMETRIC;
         }
-        else{
+        else {
             orderBy = FAILMETRIC;
         }
-        addCookie(req,rsp,ORDER_BY_COOKIE,orderBy);
+        addCookie(req, rsp, ORDER_BY_COOKIE, orderBy);
         rsp.sendRedirect("..");
     }
 
     /**
      * Method to modify cookies for displaying requested trend.
+     *
      * @param req The HTTP request message incorporating api call this method.
      * @param rsp The HTTP response message.
      * @throws IOException Can occur while redirecting.
      */
-    public void doSelectInput(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException{
-        AbstractTestResultAction a = getLastTestResultAction();
+    public void doSelectInput(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
+        AbstractTestResultAction<?> a = getLastTestResultAction();
         String[] projectList;
-        if(a!=null){
+        if (a != null) {
             projectList = a.getProjectList();
-            String projectLevel = getParameter(req,PROJECTLEVEL);
-            if(Arrays.binarySearch(projectList,projectLevel)<0){
-                projectLevel = PROJECTS;
+            String projectLevel = getParameter(req, PROJECTLEVEL);
+            if (Arrays.binarySearch(projectList, projectLevel) < 0) {
+                projectLevel = ALL_PROJECTS;
             }
-            String trendType = getParameter(req,TRENDTYPE);
-            if(!trendType.equals(TREND1)&&!trendType.equals(TREND2)&&!trendType.equals(TREND3)){
-                trendType = TREND1;
+            String trendType = getParameter(req, TRENDTYPE);
+            if (!trendType.equals(BUILD_ANALYSIS) && !trendType.equals(LENGTHY_TESTS_MEAN) && !trendType.equals(FLAKY_TESTS)) {
+                trendType = BUILD_ANALYSIS;
             }
             int indx = trendType.lastIndexOf('_');
-            String metricName = null;
-            if(indx>=0){
-                metricName = trendType.substring(indx+1);
-                trendType = trendType.substring(0,indx);
-                addCookie(req,rsp,METRIC_NAME_COOKIE,metricName);
+            String metricName;
+            if (indx >= 0) {
+                metricName = trendType.substring(indx + 1);
+                trendType = trendType.substring(0, indx);
+                addCookie(req, rsp, METRIC_NAME_COOKIE, metricName);
             }
-            if(projectLevel!=null){
-                addCookie(req,rsp,PROJECT_LEVEL_COOKIE,projectLevel);
+            if (projectLevel != null) {
+                addCookie(req, rsp, PROJECT_LEVEL_COOKIE, projectLevel);
             }
-            if(trendType!=null){
-                addCookie(req,rsp,TREND_TYPE_COOKIE,trendType);
+            if (trendType != null) {
+                addCookie(req, rsp, TREND_TYPE_COOKIE, trendType);
             }
             rsp.sendRedirect("..");
         }
-        else{
+        else {
             rsp.setStatus(HttpServletResponse.SC_NOT_FOUND);
         }
     }
 
     /**
      * Method to add overwritten cookie to the response.
-     * @param req The HTTP request message containing api call for
-     *            {@link #doSelectInput(StaplerRequest, StaplerResponse)}.
-     * @param rsp The HTTP response message.
-     * @param cookieName Name of the cookie to be modified.
+     *
+     * @param req         The HTTP request message containing api call for
+     *                    {@link #doSelectInput(StaplerRequest, StaplerResponse)}.
+     * @param rsp         The HTTP response message.
+     * @param cookieName  Name of the cookie to be modified.
      * @param cookieValue New value of the cookie after modification.
      */
-    private void addCookie(StaplerRequest req, StaplerResponse rsp, String cookieName, String cookieValue){
-        Cookie cookie = new Cookie(cookieName,cookieValue);
+    private void addCookie(StaplerRequest req, StaplerResponse rsp, String cookieName, String cookieValue) {
+        Cookie cookie = new Cookie(cookieName, cookieValue);
         List anc = req.getAncestors();
-        Ancestor a = (Ancestor) anc.get(anc.size()-2);
+        Ancestor a = (Ancestor) anc.get(anc.size() - 2);
         cookie.setPath(a.getUrl()); // just for this project
-        cookie.setMaxAge(60*60*24*365); // 1 year
+        cookie.setMaxAge(60 * 60 * 24 * 365); // 1 year
         rsp.addCookie(cookie);
     }
 
     /**
      * Method to extract query parameter from the url and if missing then return default value.
-     * @param req The HTTP request message containing query parameter.
+     *
+     * @param req       The HTTP request message containing query parameter.
      * @param paramName The query parameter whose value needs to be extracted.
      * @return The value of the query parameter specified as paramName.
      */
-    private String getParameter(StaplerRequest req, String paramName){
+    private String getParameter(StaplerRequest req, String paramName) {
         String paramValue = req.getParameter(paramName);
 
         /*
          * If the requested query parameter is absent as user deliberately fired url with less no. of parameters
          * the these default values are assigned.
          */
-        if(paramValue==null){
-            if(paramName.equals(PROJECTLEVEL)) return PROJECTS;
-            else if(paramName.equals(TRENDTYPE)) return TREND1;
+        if (paramValue == null) {
+            if (paramName.equals(PROJECTLEVEL))
+                return ALL_PROJECTS;
+            else if (paramName.equals(TRENDTYPE))
+                return BUILD_ANALYSIS;
         }
         return paramValue;
     }
@@ -252,10 +259,10 @@ public class TestResultProjectAction implements Action {
     private static final String TREND_TYPE_COOKIE = "TestResultAction_trendType";
     private static final String METRIC_NAME_COOKIE = "TestResultAction_metricName";
     private static final String ORDER_BY_COOKIE = "TestResultAction_orderBy";
-    private static final String PROJECTS = "AllProjects";
-    private static final String TREND1 = "BuildAnalysis";
-    private static final String TREND2 = "LengthyTests_mean";
-    private static final String TREND3 = "FlakyTests";
+    private static final String ALL_PROJECTS = "AllProjects";
+    private static final String BUILD_ANALYSIS = "BuildAnalysis";
+    private static final String LENGTHY_TESTS_MEAN = "LengthyTests_mean";
+    private static final String FLAKY_TESTS = "FlakyTests";
     private static final String FAILMETRIC = "fail";
     private static final String FLAPMETRIC = "flap";
     private static final String PROJECTLEVEL = "projectLevel";
