@@ -268,6 +268,10 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      */
     public abstract Object getResult();
 
+    public <U extends AbstractTestResultAction> U getPreviousResult(Class<U> type){
+        return getPreviousResult(type,false);
+    }
+
     /**
      * Gets the test result of the previous build, if it's recorded, or null.
      */
@@ -588,7 +592,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             else if (paramName.equals(AbstractTestResultAction.TRENDTYPE))
                 return AbstractTestResultAction.BUILD_ANALYSIS;
             else if (paramName.equals(AbstractTestResultAction.METRICNAME))
-                return AbstractTestResultAction.THRESHOLD;
+                return AbstractTestResultAction.MEAN;
             else if (paramName.equals(AbstractTestResultAction.ORDERBY))
                 return AbstractTestResultAction.FAILMETRIC;
         }
@@ -716,7 +720,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         failToolTip = new ConcurrentHashMap<>();
         skipToolTip = new ConcurrentHashMap<>();
         totalToolTip = new ConcurrentHashMap<>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
                 break;
@@ -878,7 +882,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * pop each element of the stack and traverse the builds in ascending order of build number.
          */
         Deque<AbstractTestResultAction<?>> stack = new ArrayDeque<AbstractTestResultAction<?>>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
                 break;
@@ -989,7 +993,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         final int buildHistorySize = 10;
         ArrayDeque<Pair<AbstractTestResultAction<?>, HashSet<Integer>>> buildHistory = new ArrayDeque<>();
         Map<Integer, ArrayDeque<AbstractTestResultAction<?>>> testsHistory = new HashMap<>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
                 break;
@@ -1080,16 +1084,16 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 if (i > 3) {
                     int previousX = infoList.get(i - 1);
                     if (previousX - x > 1) {
-                        xySeries = failSeries.get(testIndex);
+                        xySeries = failSeries.get(y);
                         xySeries.add(x + 1, null);
                     }
                 }
-                xySeries = failSeries.get(testIndex);
+                xySeries = failSeries.get(y);
                 xySeries.add(x, y);
             }
         }
         LOGGER.log(Level.FINER, "total test trend count for {0}: {1}", new Object[]{run, count});
-        for (int testIndex = 0; testIndex <= testsToDisplay; testIndex++) {
+        for (int testIndex = testsToDisplay; testIndex >= 0; testIndex--) {
             dataset.addSeries(failSeries.get(testIndex));
         }
         return dataset;
@@ -1319,7 +1323,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         Font markerFont = new Font("Arial", Font.BOLD, 12);
 
         for (int testIndex = 0; testIndex <= testsToDisplay; testIndex++) {
-            boolean isShapeVisible = !(testIndex == 0);
+            boolean isShapeVisible = !(testIndex == testsToDisplay);
             renderer.setSeriesShapesFilled(testIndex, isShapeVisible);
             renderer.setSeriesShapesVisible(testIndex, isShapeVisible);
             renderer.setSeriesToolTipGenerator(testIndex, toolTipGenerator);

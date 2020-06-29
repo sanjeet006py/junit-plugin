@@ -93,7 +93,7 @@ THE SOFTWARE.
 				<img src="test/trend${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" lazymap="test/trendMap${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" alt="[Test result trend chart]"/>
 			</div>
 			<div style="text-align:right">
-				<j:if test="${trend=='BuildAnalysis'}">
+				<j:if test="${trend=='BuildAnalysis'||trend==null}">
 					<a href="test/flipTrend">
 						<j:choose>
 						<!-- needs to strip whitespace here -->
