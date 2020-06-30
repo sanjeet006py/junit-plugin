@@ -122,7 +122,8 @@ public class AbstractTestResultActionTest {
         Whitebox.setInternalState(abstractTestResultAction2,"run",run2);
         Whitebox.setInternalState(abstractTestResultAction3,"run",run3);
         StaplerRequest staplerRequest = mock(StaplerRequest.class);
-        doReturn("AllProjects","fail").when(abstractTestResultAction,"getParameter",staplerRequest,"projectLevel");
+        doReturn("com").when(abstractTestResultAction,"getParameter",staplerRequest,"projectLevel");
+        doReturn("fail").when(abstractTestResultAction,"getParameter",staplerRequest,"orderBy");
         spy(Integer.class);
         when(Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE)).thenReturn(Integer.MAX_VALUE);
         doReturn(abstractTestResultAction1).when(abstractTestResultAction).getPreviousResult(AbstractTestResultAction.class);
@@ -149,7 +150,7 @@ public class AbstractTestResultActionTest {
         XYSeriesCollection dataset = Whitebox.invokeMethod(abstractTestResultAction,"buildFlapperDataset",staplerRequest);
         XYSeriesCollection xySeriesCollection = new XYSeriesCollection();
         XYSeries xySeries;
-        for(int series = 3;series>=1;series--){
+        for(int series = 2;series>=1;series--){
             xySeries = new XYSeries(series);
             for(int index = 4; index>=1; index--){
                 xySeries.add(index,series);
@@ -160,7 +161,7 @@ public class AbstractTestResultActionTest {
         for(int index = 4; index>=1;index--){
             xySeries.add(index,null);
         }
-        xySeries.add(4.5,3.5);
+        xySeries.add(4.5,2.5);
         xySeriesCollection.addSeries(xySeries);
         assertEquals("collection size should be same",xySeriesCollection.getSeriesCount(),dataset.getSeriesCount());
         for(int series = 0;series<xySeriesCollection.getSeriesCount();series++){

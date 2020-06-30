@@ -18,7 +18,9 @@
         <jenkins.version>2.164.3</jenkins.version>
         <java.level>8</java.level>
         <no-test-jar>false</no-test-jar>
-        <javasimon.version>4.1.0</javasimon.version>
+        <jacoco.version>0.8.5</jacoco.version>
+        <jacoco.it.execution.data.file>${project.build.directory}/coverage-reports/jacoco-it.exec</jacoco.it.execution.data.file>
+        <jacoco.ut.execution.data.file>${project.build.directory}/coverage-reports/jacoco-ut.exec</jacoco.ut.execution.data.file>
     </properties>
     <licenses>
         <license>
@@ -131,6 +133,12 @@
             <artifactId>powermock-api-mockito2</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.jacoco</groupId>
+            <artifactId>org.jacoco.agent</artifactId>
+            <version>${jacoco.version}</version>
+            <classifier>runtime</classifier>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
@@ -143,4 +151,61 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>default-instrument</id>
+                        <goals>
+                            <goal>instrument</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>default-restore-instrumented-classes</id>
+                        <goals>
+                            <goal>restore-instrumented-classes</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${project.build.directory}/coverage.exec</dataFile>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- SUREFIRE-1226 workaround -->
+                    <trimStackTrace>false</trimStackTrace>
+                    <!--Exclude any Integration Test-->
+                    <systemProperties>
+                        <property>
+                            <name>hudson.udp</name>
+                            <value>-1</value>
+                        </property>
+                        <property>
+                            <name>java.io.tmpdir</name>
+                            <value>${surefireTempDir}</value>
+                        </property>
+                    </systemProperties>
+                    <!--Setup Jacoco Junit file path here-->
+                    <systemPropertyVariables>
+                        <jacoco-agent.destfile>${project.build.directory}/coverage.exec</jacoco-agent.destfile>
+                    </systemPropertyVariables>
+                    <runOrder>alphabetical</runOrder>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
