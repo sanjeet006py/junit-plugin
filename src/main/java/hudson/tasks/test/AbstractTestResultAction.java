@@ -268,6 +268,12 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      */
     public abstract Object getResult();
 
+    /**
+     * A wrapper method to get previous {@link hudson.tasks.junit.TestResultAction} object from the current object.
+     * @param type The class whose current instance is being used to fetch the previous test result instance.
+     * @param <U> The generic type describing the class passed as parameter.
+     * @return The instance which represents the previous test result w.r.t. the test result represented by this object.
+     */
     public <U extends AbstractTestResultAction> U getPreviousResult(Class<U> type){
         return getPreviousResult(type,false);
     }
@@ -656,6 +662,15 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         return dsb.build();
     }
 
+    /**
+     * A method to count the number of tests which have failed, passed or skipped.
+     * @param tests List of failed/passed/skipped tests.
+     * @param allPackages True when all packages are to be considered.
+     * @param projectLevel The project
+     * @param dsb
+     * @param a
+     * @param seriesName
+     */
     private void buildDataSetPerProjectUtil(List<CaseResult> tests, boolean allPackages, String projectLevel,
                                             DataSetBuilder<String, ChartUtil.NumberOnlyBuildLabel> dsb,
                                             AbstractTestResultAction<?> a, String seriesName) {
