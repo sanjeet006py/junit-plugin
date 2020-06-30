@@ -268,6 +268,10 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      */
     public abstract Object getResult();
 
+    public <U extends AbstractTestResultAction> U getPreviousResult(Class<U> type){
+        return getPreviousResult(type,false);
+    }
+
     /**
      * Gets the test result of the previous build, if it's recorded, or null.
      */
@@ -717,7 +721,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         failToolTip = new ConcurrentHashMap<>();
         skipToolTip = new ConcurrentHashMap<>();
         totalToolTip = new ConcurrentHashMap<>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
                 break;
@@ -879,7 +883,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
          * pop each element of the stack and traverse the builds in ascending order of build number.
          */
         Deque<AbstractTestResultAction<?>> stack = new ArrayDeque<AbstractTestResultAction<?>>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
                 break;
@@ -990,7 +994,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         final int buildHistorySize = 10;
         ArrayDeque<Pair<AbstractTestResultAction<?>, HashSet<Integer>>> buildHistory = new ArrayDeque<>();
         Map<Integer, ArrayDeque<AbstractTestResultAction<?>>> testsHistory = new HashMap<>();
-        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class, false)) {
+        for (AbstractTestResultAction<?> a = this; a != null; a = a.getPreviousResult(AbstractTestResultAction.class)) {
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
                 break;
