@@ -24,166 +24,161 @@ THE SOFTWARE.
 
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form" xmlns:i="jelly:fmt" xmlns:local="local">
-	<j:set var="tr" value="${action.lastTestResultAction}" />
-	<j:if test="${tr.previousResult!=null}">
-	<!-- at least two data points are required for a trend report -->
-		<div align="right">
-			<j:set var="mode" value="${h.getCookie(request,'TestResultAction_failureOnly').value}" />
-			<j:set var="project" value="${h.getCookie(request,'TestResultAction_projectLevel').value}" />
-			<j:set var="trend" value="${h.getCookie(request,'TestResultAction_trendType').value}" />
-			<j:set var="metric" value="${h.getCookie(request,'TestResultAction_metricName').value}" />
-			<j:set var="order" value="${h.getCookie(request,'TestResultAction_orderBy').value}" />
+  <j:set var="tr" value="${action.lastTestResultAction}" />
+  <j:if test="${tr.previousResult!=null}">
+    <!-- at least two data points are required for a trend report -->
+    <div align="right">
+      <j:set var="mode" value="${h.getCookie(request,'TestResultAction_failureOnly').value}" />
+      <j:set var="project" value="${h.getCookie(request,'TestResultAction_projectLevel').value}" />
+      <j:set var="trend" value="${h.getCookie(request,'TestResultAction_trendType').value}" />
+      <j:set var="metric" value="${h.getCookie(request,'TestResultAction_metricName').value}" />
+      <j:set var="order" value="${h.getCookie(request,'TestResultAction_orderBy').value}" />
+	    <!-- If any of the above declared variables equals null then default value is assigned to the corresponding
+	        query parameter in url. -->
+	    <j:choose>
+	        <j:when test="${mode!=null}">
+	            <j:set var="trendQueryString1" value="?failureOnly=${mode}" />
+	            <j:set var="trendQueryString2" value="&amp;failureOnly=${mode}" />
+	        </j:when>
+	        <j:otherwise>
+	            <j:set var="trendQueryString1" value="?failureOnly=false" />
+	            <j:set var="trendQueryString2" value="&amp;failureOnly=false" />
+	        </j:otherwise>
+	    </j:choose>
+	    <j:choose>
+	        <j:when test="${project!=null}">
+	            <j:set var="projectQueryString1" value="&amp;projectLevel=${project}" />
+	            <j:set var="projectQueryString2" value="&amp;projectLevel=${project}" />
+	        </j:when>
+	        <j:otherwise>
+	            <j:set var="projectQueryString1" value="&amp;projectLevel=AllProjects" />
+	            <j:set var="projectQueryString2" value="&amp;projectLevel=AllProjects" />
+	        </j:otherwise>
+	    </j:choose>
+	    <j:choose>
+	        <j:when test="${trend!=null}">
+	            <j:set var="typeQueryString1" value="&amp;trendType=${trend}" />
+	            <j:set var="typeQueryString2" value="&amp;trendType=${trend}" />
+	        </j:when>
+	        <j:otherwise>
+	            <j:set var="typeQueryString1" value="&amp;trendType=BuildAnalysis" />
+	            <j:set var="typeQueryString2" value="&amp;trendType=BuildAnalysis" />
+	        </j:otherwise>
+	    </j:choose>
+	    <j:choose>
+	        <j:when test="${metric!=null}">
+	            <j:set var="metricQueryString1" value="&amp;metricName=${metric}" />
+	            <j:set var="metricQueryString2" value="&amp;metricName=${metric}" />
+	        </j:when>
+	        <j:otherwise>
+	            <j:set var="metricQueryString1" value="&amp;metricName=Default" />
+	            <j:set var="metricQueryString2" value="&amp;metricName=Default" />
+	        </j:otherwise>
+	    </j:choose>
+	    <j:choose>
+	        <j:when test="${order!=null}">
+	            <j:set var="orderQueryString1" value="&amp;orderBy=${order}" />
+	            <j:set var="orderQueryString2" value="&amp;orderBy=${order}" />
+	        </j:when>
+	        <j:otherwise>
+	            <j:set var="orderQueryString1" value="&amp;orderBy=fail" />
+	            <j:set var="orderQueryString2" value="&amp;orderBy=fail" />
+	        </j:otherwise>
+	    </j:choose>
+	    <div class="test-trend-caption">
+	        ${%Test Result Trend}
+	    </div>
+	    <div>
+	        <img src="test/trend${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" lazymap="test/trendMap${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" alt="[Test result trend chart]"/>
+	    </div>
+	    <div style="text-align:right">
+	        <j:if test="${trend=='BuildAnalysis'||trend==null}">
+	            <a href="test/flipTrend">
+	                <j:choose>
+	                <!-- needs to strip whitespace here -->
+	                    <j:when test="${mode}">(${%show test # and failure #})</j:when>
+	                    <j:otherwise>(${%just show failures})</j:otherwise>
+	                </j:choose>
+	            </a>
+	        </j:if>
+	        <j:if test="${trend=='FlakyTests'}">
+	            <a href="test/failFlapFlip">
+	                <j:choose>
+	                <!-- needs to strip whitespace here -->
+	                    <j:when test="${order=='fail'}">(${%order by flappers})</j:when>
+	                    <j:otherwise>(${%order by failures})</j:otherwise>
+	                </j:choose>
+	            </a>
+	        </j:if>
+	        <st:nbsp/>
+	        <a href="test/?width=800&amp;height=600${trendQueryString2+projectQueryString2+typeQueryString2+metricQueryString2+orderQueryString2}">
+	            ${%enlarge}
+	        </a>
+	    </div>
 
-			<!-- If any of the above declared variables equals null then default value is assigned to the corresponding
-				query parameter in url. -->
-			<j:choose>
-				<j:when test="${mode!=null}">
-					<j:set var="trendQueryString1" value="?failureOnly=${mode}" />
-					<j:set var="trendQueryString2" value="&amp;failureOnly=${mode}" />
-				</j:when>
-				<j:otherwise>
-					<j:set var="trendQueryString1" value="?failureOnly=false" />
-					<j:set var="trendQueryString2" value="&amp;failureOnly=false" />
-				</j:otherwise>
-			</j:choose>
-			<j:choose>
-				<j:when test="${project!=null}">
-					<j:set var="projectQueryString1" value="&amp;projectLevel=${project}" />
-					<j:set var="projectQueryString2" value="&amp;projectLevel=${project}" />
-				</j:when>
-				<j:otherwise>
-					<j:set var="projectQueryString1" value="&amp;projectLevel=AllProjects" />
-					<j:set var="projectQueryString2" value="&amp;projectLevel=AllProjects" />
-				</j:otherwise>
-			</j:choose>
-			<j:choose>
-				<j:when test="${trend!=null}">
-					<j:set var="typeQueryString1" value="&amp;trendType=${trend}" />
-					<j:set var="typeQueryString2" value="&amp;trendType=${trend}" />
-				</j:when>
-				<j:otherwise>
-					<j:set var="typeQueryString1" value="&amp;trendType=BuildAnalysis" />
-					<j:set var="typeQueryString2" value="&amp;trendType=BuildAnalysis" />
-				</j:otherwise>
-			</j:choose>
-			<j:choose>
-				<j:when test="${metric!=null}">
-					<j:set var="metricQueryString1" value="&amp;metricName=${metric}" />
-					<j:set var="metricQueryString2" value="&amp;metricName=${metric}" />
-				</j:when>
-				<j:otherwise>
-					<j:set var="metricQueryString1" value="&amp;metricName=Default" />
-					<j:set var="metricQueryString2" value="&amp;metricName=Default" />
-				</j:otherwise>
-			</j:choose>
-			<j:choose>
-				<j:when test="${order!=null}">
-					<j:set var="orderQueryString1" value="&amp;orderBy=${order}" />
-					<j:set var="orderQueryString2" value="&amp;orderBy=${order}" />
-				</j:when>
-				<j:otherwise>
-					<j:set var="orderQueryString1" value="&amp;orderBy=fail" />
-					<j:set var="orderQueryString2" value="&amp;orderBy=fail" />
-				</j:otherwise>
-			</j:choose>
-			<div class="test-trend-caption">
-				${%Test Result Trend}
-			</div>
-			<div>
-				<img src="test/trend${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" lazymap="test/trendMap${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" alt="[Test result trend chart]"/>
-			</div>
-			<div style="text-align:right">
-				<j:if test="${trend=='BuildAnalysis'||trend==null}">
-					<a href="test/flipTrend">
-						<j:choose>
-						<!-- needs to strip whitespace here -->
-							<j:when test="${mode}">(${%show test # and failure #})</j:when>
-							<j:otherwise>(${%just show failures})</j:otherwise>
-						</j:choose>
-					</a>
-				</j:if>
-				<j:if test="${trend=='FlakyTests'}">
-					<a href="test/failFlapFlip">
-						<j:choose>
-						<!-- needs to strip whitespace here -->
-							<j:when test="${order=='fail'}">(${%order by flappers})</j:when>
-							<j:otherwise>(${%order by failures})</j:otherwise>
-						</j:choose>
-					</a>
-				</j:if>
-				<st:nbsp/>
-				<a href="test/?width=800&amp;height=600${trendQueryString2+projectQueryString2+typeQueryString2+metricQueryString2+orderQueryString2}">
-					${%enlarge}
-				</a>
-			</div>
+      <!-- Two drop down menus generated using HTML for selecting the project and the trend type. Unless expanded,
+      they always display last selected option and if no selection has been made yet then they display
+      "All Projects" in "Choose project" drop down and "Overall Build Analysis" in "Choose Trend Type" drop down.
+      This selective behaviour has been implemented by encapsulating <option> tag of HTML within <j:choose> tag
+      and for selection "selected" attribute of <option> tag is used. -->
+      <div>
 
-			<!-- Two drop down menus generated using HTML for selecting the project and the trend type. Unless expanded,
-			they always display last selected option and if no selection has been made yet then they display
-			"All Projects" in "Choose project" drop down and "Overall Build Analysis" in "Choose Trend Type" drop down.
-			This selective behaviour has been implemented by encapsulating <option> tag of HTML within <j:choose> tag
-			and for selection "selected" attribute of <option> tag is used. -->
-			<div>
+        <!-- GET method is used by form in HTTP request. -->
+        <form method="get">
+            <label for="projectMenu">Choose Project:</label><st:nbsp/>
+            <select name="projectLevel" id="projectMenu">
+                <j:choose>
+                    <j:when test="${project=='AllProjects'}">
+                        <option value="AllProjects" selected="selected">All Projects</option>
+                    </j:when>
+                    <j:otherwise>
+                        <option value="AllProjects">All Projects</option>
+                    </j:otherwise>
+                </j:choose>
+                <j:forEach var="projectName" items="${tr.projectList}">
+                    <j:choose>
+                        <j:when test="${project==projectName}">
+                            <option value="${projectName}" selected="selected">${projectName}</option>
+                        </j:when>
+                        <j:otherwise>
+                            <option value="${projectName}">${projectName}</option>
+                        </j:otherwise>
+                    </j:choose>
+                </j:forEach>
+            </select><st:nbsp/>
+            <label for="trendMenu">Choose Trend Type:</label><st:nbsp/>
+            <select name="trendType" id="trendMenu">
+                <j:choose>
+                    <j:when test="${trend=='BuildAnalysis'}">
+                        <option value="BuildAnalysis" selected="selected">Overall Build Analysis</option>
+                    </j:when>
+                    <j:otherwise>
+                        <option value="BuildAnalysis">Overall Build Analysis</option>
+                    </j:otherwise>
+                </j:choose>
+                <j:choose>
+                    <j:when test="${trend=='LengthyTests'}">
+                        <option value="LengthyTests_mean" selected="selected">Lengthy Tests Count</option>
+                    </j:when>
+                    <j:otherwise>
+                        <option value="LengthyTests_mean">Lengthy Tests Count</option>
+                    </j:otherwise>
+                </j:choose>
+                <j:choose>
+                    <j:when test="${trend=='FlakyTests'}">
+                        <option value="FlakyTests" selected="selected">Test Flappers Count</option>
+                    </j:when>
+                    <j:otherwise>
+                        <option value="FlakyTests">Test Flappers Count</option>
+                    </j:otherwise>
+                </j:choose>
+            </select><st:nbsp/>
 
-				<!-- GET method is used by form in HTTP request. -->
-				<form method="get">
-					<label for="projectMenu">Choose Project:</label>
-					<st:nbsp/>
-					<select name="projectLevel" id="projectMenu">
-						<j:choose>
-							<j:when test="${project=='AllProjects'}">
-								<option value="AllProjects" selected="selected">All Projects</option>
-							</j:when>
-							<j:otherwise>
-								<option value="AllProjects">All Projects</option>
-							</j:otherwise>
-						</j:choose>
-						<j:forEach var="projectName" items="${tr.projectList}">
-							<j:choose>
-								<j:when test="${project==projectName}">
-									<option value="${projectName}" selected="selected">${projectName}</option>
-								</j:when>
-								<j:otherwise>
-									<option value="${projectName}">${projectName}</option>
-								</j:otherwise>
-							</j:choose>
-						</j:forEach>
-					</select>
-					<st:nbsp/>
-					<label for="trendMenu">Choose Trend Type:</label>
-					<st:nbsp/>
-					<select name="trendType" id="trendMenu">
-						<j:choose>
-							<j:when test="${trend=='BuildAnalysis'}">
-								<option value="BuildAnalysis" selected="selected">Overall Build Analysis</option>
-							</j:when>
-							<j:otherwise>
-								<option value="BuildAnalysis">Overall Build Analysis</option>
-							</j:otherwise>
-						</j:choose>
-						<j:choose>
-							<j:when test="${trend=='LengthyTests'}">
-								<option value="LengthyTests_mean" selected="selected">Lengthy Tests Count</option>
-							</j:when>
-							<j:otherwise>
-								<option value="LengthyTests_mean">Lengthy Tests Count</option>
-							</j:otherwise>
-						</j:choose>
-						<j:choose>
-							<j:when test="${trend=='FlakyTests'}">
-								<option value="FlakyTests" selected="selected">Test Flappers Count</option>
-							</j:when>
-							<j:otherwise>
-								<option value="FlakyTests">Test Flappers Count</option>
-							</j:otherwise>
-						</j:choose>
-					</select>
-					<st:nbsp/>
-
-					<!-- Button is of "submit" type to make use of "formaction" attribute of "button" tag in HTML for
-					making api call. -->
-					<button type="submit" formaction="test/selectInput">Submit</button><st:nbsp/>
-				</form>
-			</div>
-		</div>
-	</j:if>
+            <!-- Button is of "submit" type to make use of "formaction" attribute of "button" tag in HTML for
+            making api call. -->
+            <button type="submit" formaction="test/selectInput">Submit</button><st:nbsp/>
+        </form>
+      </div>
+    </div>
+  </j:if>
 </j:jelly>

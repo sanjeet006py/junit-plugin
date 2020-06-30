@@ -1,18 +1,18 @@
 /*
  * The MIT License
- *
+ * 
  * Copyright (c) 2004-2009, Sun Microsystems, Inc., Kohsuke Kawaguchi, Daniel Dyer, Red Hat, Inc., Tom Huybrechts, Yahoo!, Inc.
- *
+ * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -49,9 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import jenkins.tasks.SimpleBuildStep;
-
 
 /**
  * {@link Action} that displays the JUnit test result.
@@ -93,9 +91,8 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
     }
 
     @SuppressWarnings("deprecation")
-    @Override
-    public Collection<? extends Action> getProjectActions() {
-        Job<?, ?> job = run.getParent();
+    @Override public Collection<? extends Action> getProjectActions() {
+        Job<?,?> job = run.getParent();
         if (/* getAction(Class) produces a StackOverflowError */!Util.filter(job.getActions(), TestResultProjectAction.class).isEmpty()) {
             // JENKINS-26077: someone like XUnitPublisher already added one
             return Collections.emptySet();
@@ -105,7 +102,6 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
 
     /**
      * Overwrites the {@link TestResult} by a new data set.
-     *
      * @since 1.2-beta-1
      */
     public synchronized void setResult(TestResult result, TaskListener listener) {
@@ -116,12 +112,12 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
         skipCount = result.getSkipCount();
 
         if (run != null) {
-            // persist the data
-            try {
-                getDataFile().write(result);
-            } catch (IOException e) {
-                e.printStackTrace(listener.fatalError("Failed to save the JUnit test result"));
-            }
+        // persist the data
+        try {
+            getDataFile().write(result);
+        } catch (IOException e) {
+            e.printStackTrace(listener.fatalError("Failed to save the JUnit test result"));
+        }
         }
 
         this.result = new WeakReference<TestResult>(result);
@@ -138,19 +134,18 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
 
     public synchronized TestResult getResult() {
         TestResult r;
-        if (result == null) {
+        if(result==null) {
             r = load();
             result = new WeakReference<TestResult>(r);
-        }
-        else {
+        } else {
             r = result.get();
         }
 
-        if (r == null) {
+        if(r==null) {
             r = load();
             result = new WeakReference<TestResult>(r);
         }
-        if (totalCount == null) {
+        if(totalCount==null) {
             totalCount = r.getTotalCount();
             failCount = r.getFailCount();
             skipCount = r.getSkipCount();
@@ -160,21 +155,21 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
 
     @Override
     public synchronized int getFailCount() {
-        if (totalCount == null)
+        if(totalCount==null)
             getResult();    // this will compute the result
         return failCount;
     }
 
     @Override
     public synchronized int getSkipCount() {
-        if (totalCount == null)
+        if(totalCount==null)
             getResult();    // this will compute the result
         return skipCount;
     }
 
     @Override
     public synchronized int getTotalCount() {
-        if (totalCount == null)
+        if(totalCount==null)
             getResult();    // this will compute the result
         return totalCount;
     }
@@ -185,13 +180,13 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
     }
 
     public void setHealthScaleFactor(double healthScaleFactor) {
-        this.healthScaleFactor = Math.max(0.0, healthScaleFactor);
+        this.healthScaleFactor = Math.max(0.0,healthScaleFactor);
     }
 
     @Override
-    public List<CaseResult> getFailedTests() {
-        return getResult().getFailedTests();
-    }
+     public List<CaseResult> getFailedTests() {
+          return getResult().getFailedTests();
+     }
 
     @Override
     public List<CaseResult> getPassedTests() {
@@ -210,9 +205,9 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
     private TestResult load() {
         TestResult r;
         try {
-            r = (TestResult) getDataFile().read();
+            r = (TestResult)getDataFile().read();
         } catch (IOException e) {
-            logger.log(Level.WARNING, "Failed to load " + getDataFile(), e);
+            logger.log(Level.WARNING, "Failed to load "+getDataFile(),e);
             r = new TestResult();   // return a dummy
         }
         r.freeze(this);
@@ -222,7 +217,6 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
     /**
      * A method to get {@link TestResult} object if it is already loaded with data and if it has been GC'ed
      * then first load the {@link TestResult} object with data, create a weak reference to it and return it.
-     *
      * @return {@link TestResult} object loaded with data of test suites and test cases within them from
      * junitResult.xml
      */
@@ -258,9 +252,10 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
      *
      * <p>
      * This method will not automatically persist the data at the time of addition.
+     *
      */
     public void setData(List<Data> testData) {
-        this.testData = testData;
+	      this.testData = testData;
     }
 
     /**
@@ -295,21 +290,22 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
      * @see TestDataPublisher
      */
     public static abstract class Data {
-        /**
-         * Returns all TestActions for the testObject.
+    	/**
+    	 * Returns all TestActions for the testObject.
          *
-         * @return Can be empty but never null. The caller must assume that the returned list is read-only.
-         */
-        public abstract List<? extends TestAction> getTestAction(hudson.tasks.junit.TestObject testObject);
+         * @return
+         *      Can be empty but never null. The caller must assume that the returned list is read-only.
+    	 */
+    	public abstract List<? extends TestAction> getTestAction(hudson.tasks.junit.TestObject testObject);
     }
 
     public Object readResolve() {
         super.readResolve(); // let it do the post-deserialization work
-        if (testData == null) {
-            testData = new ArrayList<Data>(0);
-        }
+    	if (testData == null) {
+    		testData = new ArrayList<Data>(0);
+    	}
 
-        return this;
+    	return this;
     }
 
     private static final Logger logger = Logger.getLogger(TestResultAction.class.getName());
@@ -317,10 +313,10 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
     private static final XStream XSTREAM = new XStream2();
 
     static {
-        XSTREAM.alias("result", TestResult.class);
-        XSTREAM.alias("suite", SuiteResult.class);
-        XSTREAM.alias("case", CaseResult.class);
-        XSTREAM.registerConverter(new HeapSpaceStringConverter(), 100);
+        XSTREAM.alias("result",TestResult.class);
+        XSTREAM.alias("suite",SuiteResult.class);
+        XSTREAM.alias("case",CaseResult.class);
+        XSTREAM.registerConverter(new HeapSpaceStringConverter(),100);
     }
 
 }
