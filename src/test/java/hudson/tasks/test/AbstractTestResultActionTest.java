@@ -36,9 +36,9 @@ public class AbstractTestResultActionTest {
     private static Logger LOGGER;
 
     @BeforeClass
-    public static void setUp(){
+    public static void setUp () {
         LOGGER = PowerMockito.mock(Logger.class);
-        PowerMockito.doNothing().when(LOGGER).log(Level.FINER,"",new Object[]{1,1});
+        PowerMockito.doNothing().when(LOGGER).log(Level.FINER, "", new Object[]{1, 1});
         PowerMockito.mockStatic(Logger.class);
         PowerMockito.when(Logger.getLogger(AbstractTestResultAction.class.getName())).thenReturn(LOGGER);
     }
@@ -49,7 +49,6 @@ public class AbstractTestResultActionTest {
      */
     @Test
     public void getProjectListTest () {
-
         TestResult testResult = PowerMockito.mock(TestResult.class);
         SuiteResult suiteResult1 = PowerMockito.mock(SuiteResult.class);
         SuiteResult suiteResult2 = PowerMockito.mock(SuiteResult.class);
@@ -77,7 +76,6 @@ public class AbstractTestResultActionTest {
      */
     @Test
     public void getParametersWhenParamValueIsNotNull () throws Exception {
-
         StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
         String paramName = "projectLevel";
         String actualParamValue = "AllProjects";
@@ -95,7 +93,6 @@ public class AbstractTestResultActionTest {
      */
     @Test
     public void getParametersWhenMetricNameIsNull () throws Exception {
-
         StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
         String paramName = "metricName";
         String actualParamValue = null;
@@ -113,7 +110,6 @@ public class AbstractTestResultActionTest {
      */
     @Test
     public void getParametersWhenTrendTypeIsNull () throws Exception {
-
         StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
         String paramName = "trendType";
         String actualParamValue = null;
@@ -131,7 +127,6 @@ public class AbstractTestResultActionTest {
      */
     @Test
     public void getParametersWhenProjectLevelIsNull () throws Exception {
-
         StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
         String paramName = "projectLevel";
         String actualParamValue = null;
@@ -149,7 +144,6 @@ public class AbstractTestResultActionTest {
      */
     @Test
     public void getParametersWhenOrderByIsNull () throws Exception {
-
         StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
         String paramName = "orderBy";
         String actualParamValue = null;
@@ -167,7 +161,6 @@ public class AbstractTestResultActionTest {
      */
     @Test
     public void getParametersWhenFailureOnlyIsNull () throws Exception {
-
         StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
         String paramName = "failureOnly";
         String actualParamValue = null;
@@ -184,7 +177,7 @@ public class AbstractTestResultActionTest {
      * and the a particular project was chosen.
      */
     @Test
-    public void buildFlapperDatasetTest () throws Exception {
+    public void buildFlapperDatasetTestWithoutFlapper () throws Exception {
         MemberModifier.suppress(MemberMatcher.method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
         MemberModifier.suppress(MemberMatcher.method(AbstractTestResultAction.class, "onAttached"));
         AbstractTestResultAction<?> abstractTestResultAction = PowerMockito.spy(new TestResultAction(null, null, null));
@@ -212,7 +205,7 @@ public class AbstractTestResultActionTest {
         PowerMockito.doReturn(abstractTestResultAction2).when(abstractTestResultAction1).getPreviousResult(AbstractTestResultAction.class);
         PowerMockito.doReturn(abstractTestResultAction3).when(abstractTestResultAction2).getPreviousResult(AbstractTestResultAction.class);
         PowerMockito.doReturn(null).when(abstractTestResultAction3).getPreviousResult(AbstractTestResultAction.class);
-        TestResult r = PowerMockito.mock(TestResult.class);
+        TestResult testResult = PowerMockito.mock(TestResult.class);
         CaseResult caseResult1 = PowerMockito.mock(CaseResult.class);
         CaseResult caseResult2 = PowerMockito.mock(CaseResult.class);
         CaseResult caseResult3 = PowerMockito.mock(CaseResult.class);
@@ -220,15 +213,15 @@ public class AbstractTestResultActionTest {
         caseResultList.add(caseResult1);
         caseResultList.add(caseResult2);
         caseResultList.add(caseResult3);
-        PowerMockito.doReturn(r).when(abstractTestResultAction).loadXml();
-        PowerMockito.doReturn(r).when(abstractTestResultAction1).loadXml();
-        PowerMockito.doReturn(r).when(abstractTestResultAction2).loadXml();
-        PowerMockito.doReturn(r).when(abstractTestResultAction3).loadXml();
-        PowerMockito.doReturn(caseResultList).when(r).getFailedTests();
+        PowerMockito.doReturn(testResult).when(abstractTestResultAction).loadXml();
+        PowerMockito.doReturn(testResult).when(abstractTestResultAction1).loadXml();
+        PowerMockito.doReturn(testResult).when(abstractTestResultAction2).loadXml();
+        PowerMockito.doReturn(testResult).when(abstractTestResultAction3).loadXml();
+        PowerMockito.doReturn(caseResultList).when(testResult).getFailedTests();
         PowerMockito.doReturn("com.salesforce.hadoop.Class1.Test1").when(caseResult1).getFullName();
         PowerMockito.doReturn("org.apache.hbase.Class2.Test2").when(caseResult2).getFullName();
         PowerMockito.doReturn("com.salesforce.phoenix.Class3.Test3").when(caseResult3).getFullName();
-        PowerMockito.doReturn(new ArrayList<>()).when(r).getPassedTests();
+        PowerMockito.doReturn(new ArrayList<>()).when(testResult).getPassedTests();
         XYSeriesCollection dataset = Whitebox.invokeMethod(abstractTestResultAction, "buildFlapperDataset", staplerRequest);
         XYSeriesCollection xySeriesCollection = new XYSeriesCollection();
         XYSeries xySeries;
@@ -244,6 +237,97 @@ public class AbstractTestResultActionTest {
             xySeries.add(index, null);
         }
         xySeries.add(4.5, 2.5);
+        xySeriesCollection.addSeries(xySeries);
+        Assert.assertEquals("collection size should be same", xySeriesCollection.getSeriesCount(), dataset.getSeriesCount());
+        for (int series = 0; series < xySeriesCollection.getSeriesCount(); series++) {
+            XYSeries expectedXYSeries = xySeriesCollection.getSeries(series);
+            XYSeries actualXYSeries = dataset.getSeries(series);
+            Assert.assertEquals("Series size should be same", expectedXYSeries.getItemCount(), actualXYSeries.getItemCount());
+            for (int item = 0; item < expectedXYSeries.getItemCount(); item++) {
+                Assert.assertEquals("X value should be same", expectedXYSeries.getX(item), actualXYSeries.getX(item));
+                Assert.assertEquals("Y value should be same", expectedXYSeries.getY(item), actualXYSeries.getY(item));
+            }
+        }
+    }
+
+    /**
+     * Testcase for testing the {AbstractTestResultAction#buildFlapperDataset(StaplerRequest)} when a testcase flapped
+     * and all the projects were chosen.
+     */
+    @Test
+    public void buildFlapperDatasetTestWithFlapper () throws Exception {
+        MemberModifier.suppress(MemberMatcher.method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        MemberModifier.suppress(MemberMatcher.method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction1 = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction2 = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction3 = PowerMockito.spy(new TestResultAction(null, null, null));
+        Run<?, ?> run = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run1 = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run2 = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run3 = Whitebox.newInstance(FreeStyleBuild.class);
+        run.number = 4;
+        run1.number = 3;
+        run2.number = 2;
+        run3.number = 1;
+        Whitebox.setInternalState(abstractTestResultAction, "run", run);
+        Whitebox.setInternalState(abstractTestResultAction1, "run", run1);
+        Whitebox.setInternalState(abstractTestResultAction2, "run", run2);
+        Whitebox.setInternalState(abstractTestResultAction3, "run", run3);
+        StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
+        PowerMockito.doReturn("AllProjects").when(abstractTestResultAction, "getParameter", staplerRequest, "projectLevel");
+        PowerMockito.doReturn("flap").when(abstractTestResultAction, "getParameter", staplerRequest, "orderBy");
+        PowerMockito.spy(Integer.class);
+        PowerMockito.when(Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE)).thenReturn(Integer.MAX_VALUE);
+        PowerMockito.doReturn(abstractTestResultAction1).when(abstractTestResultAction).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(abstractTestResultAction2).when(abstractTestResultAction1).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(abstractTestResultAction3).when(abstractTestResultAction2).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(null).when(abstractTestResultAction3).getPreviousResult(AbstractTestResultAction.class);
+        TestResult testResult = PowerMockito.mock(TestResult.class);
+        TestResult flapTestResult = PowerMockito.mock(TestResult.class);
+        CaseResult caseResult1 = PowerMockito.mock(CaseResult.class);
+        CaseResult caseResult2 = PowerMockito.mock(CaseResult.class);
+        CaseResult caseResult3 = PowerMockito.mock(CaseResult.class);
+        List<CaseResult> caseResultList = new ArrayList<>();
+        caseResultList.add(caseResult1);
+        caseResultList.add(caseResult2);
+        caseResultList.add(caseResult3);
+        List<CaseResult> failCaseResultList = new ArrayList<>();
+        failCaseResultList.add(caseResult1);
+        failCaseResultList.add(caseResult3);
+        List<CaseResult> passCaseResultList = new ArrayList<>();
+        passCaseResultList.add(caseResult2);
+        PowerMockito.doReturn(testResult).when(abstractTestResultAction).loadXml();
+        PowerMockito.doReturn(flapTestResult).when(abstractTestResultAction1).loadXml();
+        PowerMockito.doReturn(testResult).when(abstractTestResultAction2).loadXml();
+        PowerMockito.doReturn(testResult).when(abstractTestResultAction3).loadXml();
+        PowerMockito.doReturn(caseResultList).when(testResult).getFailedTests();
+        PowerMockito.doReturn(failCaseResultList).when(flapTestResult).getFailedTests();
+        PowerMockito.doReturn("com.salesforce.hadoop.Class1.Test1").when(caseResult1).getFullName();
+        PowerMockito.doReturn("org.apache.hbase.Class2.Test2").when(caseResult2).getFullName();
+        PowerMockito.doReturn("com.salesforce.phoenix.Class3.Test3").when(caseResult3).getFullName();
+        PowerMockito.doReturn(new ArrayList<>()).when(testResult).getPassedTests();
+        PowerMockito.doReturn(passCaseResultList).when(flapTestResult).getPassedTests();
+        XYSeriesCollection dataset = Whitebox.invokeMethod(abstractTestResultAction, "buildFlapperDataset", staplerRequest);
+        XYSeriesCollection xySeriesCollection = new XYSeriesCollection();
+        XYSeries xySeries;
+        for (int series = 3; series >= 1; series--) {
+            xySeries = new XYSeries(series);
+            for (int index = 4; index >= 1; index--) {
+                if (series == 3 && index == 3) {
+                    xySeries.add(index, null);
+                }
+                else {
+                    xySeries.add(index, series);
+                }
+            }
+            xySeriesCollection.addSeries(xySeries);
+        }
+        xySeries = new XYSeries(0);
+        for (int index = 4; index >= 1; index--) {
+            xySeries.add(index, null);
+        }
+        xySeries.add(4.5, 3.5);
         xySeriesCollection.addSeries(xySeries);
         Assert.assertEquals("collection size should be same", xySeriesCollection.getSeriesCount(), dataset.getSeriesCount());
         for (int series = 0; series < xySeriesCollection.getSeriesCount(); series++) {

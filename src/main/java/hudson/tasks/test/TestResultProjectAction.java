@@ -49,6 +49,21 @@ import java.util.List;
  * @author Kohsuke Kawaguchi
  */
 public class TestResultProjectAction implements Action {
+
+    private static final String FAILURE_ONLY_COOKIE = "TestResultAction_failureOnly";
+    private static final String PROJECT_LEVEL_COOKIE = "TestResultAction_projectLevel";
+    private static final String TREND_TYPE_COOKIE = "TestResultAction_trendType";
+    private static final String METRIC_NAME_COOKIE = "TestResultAction_metricName";
+    private static final String ORDER_BY_COOKIE = "TestResultAction_orderBy";
+    private static final String ALL_PROJECTS = "AllProjects";
+    private static final String BUILD_ANALYSIS = "BuildAnalysis";
+    private static final String LENGTHY_TESTS_MEAN = "LengthyTests_mean";
+    private static final String FLAKY_TESTS = "FlakyTests";
+    private static final String FAILMETRIC = "fail";
+    private static final String FLAPMETRIC = "flap";
+    private static final String PROJECTLEVEL = "projectLevel";
+    private static final String TRENDTYPE = "trendType";
+
     /**
      * Project that owns this action.
      * @since 1.2-beta-1
@@ -170,7 +185,8 @@ public class TestResultProjectAction implements Action {
 
         if (orderBy.equals(FAILMETRIC)) {
             orderBy = FLAPMETRIC;
-        } else {
+        }
+        else {
             orderBy = FAILMETRIC;
         }
         addCookie(req, rsp, ORDER_BY_COOKIE, orderBy);
@@ -210,7 +226,8 @@ public class TestResultProjectAction implements Action {
                 addCookie(req, rsp, TREND_TYPE_COOKIE, trendType);
             }
             rsp.sendRedirect("..");
-        } else {
+        }
+        else {
             rsp.setStatus(HttpServletResponse.SC_NOT_FOUND);
         }
     }
@@ -253,18 +270,4 @@ public class TestResultProjectAction implements Action {
         }
         return paramValue;
     }
-
-    private static final String FAILURE_ONLY_COOKIE = "TestResultAction_failureOnly";
-    private static final String PROJECT_LEVEL_COOKIE = "TestResultAction_projectLevel";
-    private static final String TREND_TYPE_COOKIE = "TestResultAction_trendType";
-    private static final String METRIC_NAME_COOKIE = "TestResultAction_metricName";
-    private static final String ORDER_BY_COOKIE = "TestResultAction_orderBy";
-    private static final String ALL_PROJECTS = "AllProjects";
-    private static final String BUILD_ANALYSIS = "BuildAnalysis";
-    private static final String LENGTHY_TESTS_MEAN = "LengthyTests_mean";
-    private static final String FLAKY_TESTS = "FlakyTests";
-    private static final String FAILMETRIC = "fail";
-    private static final String FLAPMETRIC = "flap";
-    private static final String PROJECTLEVEL = "projectLevel";
-    private static final String TRENDTYPE = "trendType";
 }
