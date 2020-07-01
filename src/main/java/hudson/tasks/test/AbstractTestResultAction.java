@@ -1414,7 +1414,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
                 String flapCount = flapperInfo.get(y).get(1).toString() + "\n";
                 String flapperCount = flapperCountToolTip.get(x).toString();
                 String build = "#" + x;
-                return String.valueOf(Messages.AbstractTestResultAction_testInfo(build, caseName, totalFailCount, flapCount, flapperCount));
+                return String.valueOf(Messages.AbstractTestResultAction_flakyTests(build, caseName, totalFailCount, flapCount, flapperCount));
             }
         };
         XYURLGenerator urlGenerator = new CustomXYToolTipURLGenerator() {
@@ -1425,7 +1425,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
             }
         };
         for (int testIndex = 0; testIndex <= testsToDisplay; testIndex++) {
-            boolean isShapeVisible = !(testIndex == 0);
+            boolean isShapeVisible = !(testIndex == testsToDisplay);
             renderer.setSeriesShapesFilled(testIndex, isShapeVisible);
             renderer.setSeriesShapesVisible(testIndex, isShapeVisible);
             renderer.setSeriesToolTipGenerator(testIndex, toolTipGenerator);
