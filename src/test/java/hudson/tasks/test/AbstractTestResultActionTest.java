@@ -44,86 +44,169 @@ public class AbstractTestResultActionTest {
         when(Logger.getLogger(AbstractTestResultAction.class.getName())).thenReturn(LOGGER);
     }
 
+    /**
+     * Testcase for testing the {@link AbstractTestResultAction#getProjectList()} which is responsible for generating
+     * the drop down list showing all the project names.
+     */
     @Test
-    public void getProjectListTest() {
+    public void getProjectListTest () {
 
-        TestResult r = mock(TestResult.class);
+        TestResult testResult = mock(TestResult.class);
         SuiteResult suiteResult1 = mock(SuiteResult.class);
         SuiteResult suiteResult2 = mock(SuiteResult.class);
         SuiteResult suiteResult3 = mock(SuiteResult.class);
-        suppress(method(TestResultAction.class, "setResult", TestResult.class ,TaskListener.class));
-        suppress(method(AbstractTestResultAction.class,"onAttached"));
-        AbstractTestResultAction<?> abstractTestResultAction = spy(new TestResultAction(null,null,null));
+        suppress(method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        suppress(method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = spy(new TestResultAction(null, null, null));
         Collection<SuiteResult> suiteList = new ArrayList<>();
         suiteList.add(suiteResult1);
         suiteList.add(suiteResult2);
         suiteList.add(suiteResult3);
-        doReturn(r).when(abstractTestResultAction).loadXml();
-        doReturn(suiteList).when(r).getSuites();
+        doReturn(testResult).when(abstractTestResultAction).loadXml();
+        doReturn(suiteList).when(testResult).getSuites();
         doReturn("com.salesforce.hadoop.LoadTest").when(suiteResult1).getName();
         doReturn("org.apache.hbase.QueryTest").when(suiteResult2).getName();
         doReturn("com.salesforce.phoenix.UITest").when(suiteResult3).getName();
         String[] expectedProjectList = abstractTestResultAction.getProjectList();
-        String[] actualProjectList = {"com", "com.salesforce", "com.salesforce.hadoop", "com.salesforce.phoenix", "org",
-                "org.apache", "org.apache.hbase"};
-        assertArrayEquals("Both arrays should be same",actualProjectList,expectedProjectList);
-        Mockito.verify(r).getSuites();
-        Mockito.verify(suiteResult1).getName();
-        Mockito.verify(suiteResult2).getName();
-        Mockito.verify(suiteResult3).getName();
+        String[] actualProjectList = {"com.salesforce.hadoop", "com.salesforce.phoenix", "org.apache.hbase"};
+        assertArrayEquals("Both arrays should be same", actualProjectList, expectedProjectList);
     }
 
+    /**
+     * Testcase for testing the {AbstractTestResultAction#getParameter(StaplerRequest, String)} when the parameter value
+     * is not null in the HTTP request header.
+     */
     @Test
-    public void getParametersWhenParamValueIsNotNull() throws Exception {
+    public void getParametersWhenParamValueIsNotNull () throws Exception {
 
         StaplerRequest staplerRequest = mock(StaplerRequest.class);
         String paramName = "projectLevel";
         String actualParamValue = "AllProjects";
-        suppress(method(TestResultAction.class, "setResult", TestResult.class ,TaskListener.class));
-        suppress(method(AbstractTestResultAction.class,"onAttached"));
-        AbstractTestResultAction<?> abstractTestResultAction = new TestResultAction(null,null,null);
+        suppress(method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        suppress(method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = new TestResultAction(null, null, null);
         doReturn(actualParamValue).when(staplerRequest).getParameter(paramName);
-        String expectedParamValue = Whitebox.invokeMethod(abstractTestResultAction,"getParameter",staplerRequest,paramName);
-        assertEquals(actualParamValue,expectedParamValue);
+        String expectedParamValue = Whitebox.invokeMethod(abstractTestResultAction, "getParameter", staplerRequest, paramName);
+        assertEquals(actualParamValue, expectedParamValue);
     }
 
+    /**
+     * Testcase for testing the {AbstractTestResultAction#getParameter(StaplerRequest, String)} when the parameter value
+     * for parameter "metricName" is null in the HTTP request header.
+     */
     @Test
-    public void getParametersWhenParamValueIsNull() throws Exception {
+    public void getParametersWhenMetricNameIsNull () throws Exception {
 
         StaplerRequest staplerRequest = mock(StaplerRequest.class);
         String paramName = "metricName";
         String actualParamValue = null;
-        suppress(method(TestResultAction.class, "setResult", TestResult.class ,TaskListener.class));
-        suppress(method(AbstractTestResultAction.class,"onAttached"));
-        AbstractTestResultAction<?> abstractTestResultAction = new TestResultAction(null,null,null);
+        suppress(method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        suppress(method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = new TestResultAction(null, null, null);
         doReturn(actualParamValue).when(staplerRequest).getParameter(paramName);
-        String expectedParamValue = Whitebox.invokeMethod(abstractTestResultAction,"getParameter",staplerRequest,paramName);
-        assertEquals("mean",expectedParamValue);
+        String expectedParamValue = Whitebox.invokeMethod(abstractTestResultAction, "getParameter", staplerRequest, paramName);
+        assertEquals("mean", expectedParamValue);
     }
 
+    /**
+     * Testcase for testing the {AbstractTestResultAction#getParameter(StaplerRequest, String)} when the parameter value
+     * for parameter "trendType" is null in the HTTP request header.
+     */
     @Test
-    public void buildFlapperDatasetTest() throws Exception {
-        suppress(method(TestResultAction.class, "setResult", TestResult.class ,TaskListener.class));
-        suppress(method(AbstractTestResultAction.class,"onAttached"));
-        AbstractTestResultAction<?> abstractTestResultAction = spy(new TestResultAction(null,null,null));
-        AbstractTestResultAction<?> abstractTestResultAction1 = spy(new TestResultAction(null,null,null));
-        AbstractTestResultAction<?> abstractTestResultAction2 = spy(new TestResultAction(null,null,null));
-        AbstractTestResultAction<?> abstractTestResultAction3 = spy(new TestResultAction(null,null,null));
-        Run<?,?> run = Whitebox.newInstance(FreeStyleBuild.class);
-        Run<?,?> run1 = Whitebox.newInstance(FreeStyleBuild.class);
-        Run<?,?> run2 = Whitebox.newInstance(FreeStyleBuild.class);
-        Run<?,?> run3 = Whitebox.newInstance(FreeStyleBuild.class);
+    public void getParametersWhenTrendTypeIsNull () throws Exception {
+
+        StaplerRequest staplerRequest = mock(StaplerRequest.class);
+        String paramName = "trendType";
+        String actualParamValue = null;
+        suppress(method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        suppress(method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = new TestResultAction(null, null, null);
+        doReturn(actualParamValue).when(staplerRequest).getParameter(paramName);
+        String expectedParamValue = Whitebox.invokeMethod(abstractTestResultAction, "getParameter", staplerRequest, paramName);
+        assertEquals("BuildAnalysis", expectedParamValue);
+    }
+
+    /**
+     * Testcase for testing the {AbstractTestResultAction#getParameter(StaplerRequest, String)} when the parameter value
+     * for parameter "projectLevel" is null in the HTTP request header.
+     */
+    @Test
+    public void getParametersWhenProjectLevelIsNull () throws Exception {
+
+        StaplerRequest staplerRequest = mock(StaplerRequest.class);
+        String paramName = "projectLevel";
+        String actualParamValue = null;
+        suppress(method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        suppress(method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = new TestResultAction(null, null, null);
+        doReturn(actualParamValue).when(staplerRequest).getParameter(paramName);
+        String expectedParamValue = Whitebox.invokeMethod(abstractTestResultAction, "getParameter", staplerRequest, paramName);
+        assertEquals("AllProjects", expectedParamValue);
+    }
+
+    /**
+     * Testcase for testing the {AbstractTestResultAction#getParameter(StaplerRequest, String)} when the parameter value
+     * for parameter "orderBy" is null in the HTTP request header.
+     */
+    @Test
+    public void getParametersWhenOrderByIsNull () throws Exception {
+
+        StaplerRequest staplerRequest = mock(StaplerRequest.class);
+        String paramName = "orderBy";
+        String actualParamValue = null;
+        suppress(method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        suppress(method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = new TestResultAction(null, null, null);
+        doReturn(actualParamValue).when(staplerRequest).getParameter(paramName);
+        String expectedParamValue = Whitebox.invokeMethod(abstractTestResultAction, "getParameter", staplerRequest, paramName);
+        assertEquals("fail", expectedParamValue);
+    }
+
+    /**
+     * Testcase for testing the {AbstractTestResultAction#getParameter(StaplerRequest, String)} when the parameter value
+     * for parameter "failureOnly" is null in the HTTP request header.
+     */
+    @Test
+    public void getParametersWhenFailureOnlyIsNull () throws Exception {
+
+        StaplerRequest staplerRequest = mock(StaplerRequest.class);
+        String paramName = "failureOnly";
+        String actualParamValue = null;
+        suppress(method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        suppress(method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = new TestResultAction(null, null, null);
+        doReturn(actualParamValue).when(staplerRequest).getParameter(paramName);
+        String expectedParamValue = Whitebox.invokeMethod(abstractTestResultAction, "getParameter", staplerRequest, paramName);
+        assertEquals("false", expectedParamValue);
+    }
+
+    /**
+     * Testcase for testing the {AbstractTestResultAction#buildFlapperDataset(StaplerRequest)} when no testcase flapped
+     * and the a particular project was chosen.
+     */
+    @Test
+    public void buildFlapperDatasetTest () throws Exception {
+        suppress(method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        suppress(method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction1 = spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction2 = spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction3 = spy(new TestResultAction(null, null, null));
+        Run<?, ?> run = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run1 = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run2 = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run3 = Whitebox.newInstance(FreeStyleBuild.class);
         run.number = 4;
         run1.number = 3;
         run2.number = 2;
         run3.number = 1;
-        Whitebox.setInternalState(abstractTestResultAction,"run",run);
-        Whitebox.setInternalState(abstractTestResultAction1,"run",run1);
-        Whitebox.setInternalState(abstractTestResultAction2,"run",run2);
-        Whitebox.setInternalState(abstractTestResultAction3,"run",run3);
+        Whitebox.setInternalState(abstractTestResultAction, "run", run);
+        Whitebox.setInternalState(abstractTestResultAction1, "run", run1);
+        Whitebox.setInternalState(abstractTestResultAction2, "run", run2);
+        Whitebox.setInternalState(abstractTestResultAction3, "run", run3);
         StaplerRequest staplerRequest = mock(StaplerRequest.class);
-        doReturn("com").when(abstractTestResultAction,"getParameter",staplerRequest,"projectLevel");
-        doReturn("fail").when(abstractTestResultAction,"getParameter",staplerRequest,"orderBy");
+        doReturn("com").when(abstractTestResultAction, "getParameter", staplerRequest, "projectLevel");
+        doReturn("fail").when(abstractTestResultAction, "getParameter", staplerRequest, "orderBy");
         spy(Integer.class);
         when(Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE)).thenReturn(Integer.MAX_VALUE);
         doReturn(abstractTestResultAction1).when(abstractTestResultAction).getPreviousResult(AbstractTestResultAction.class);
@@ -147,30 +230,30 @@ public class AbstractTestResultActionTest {
         doReturn("org.apache.hbase.Class2.Test2").when(caseResult2).getFullName();
         doReturn("com.salesforce.phoenix.Class3.Test3").when(caseResult3).getFullName();
         doReturn(new ArrayList<>()).when(r).getPassedTests();
-        XYSeriesCollection dataset = Whitebox.invokeMethod(abstractTestResultAction,"buildFlapperDataset",staplerRequest);
+        XYSeriesCollection dataset = Whitebox.invokeMethod(abstractTestResultAction, "buildFlapperDataset", staplerRequest);
         XYSeriesCollection xySeriesCollection = new XYSeriesCollection();
         XYSeries xySeries;
-        for(int series = 2;series>=1;series--){
+        for (int series = 2; series >= 1; series--) {
             xySeries = new XYSeries(series);
-            for(int index = 4; index>=1; index--){
-                xySeries.add(index,series);
+            for (int index = 4; index >= 1; index--) {
+                xySeries.add(index, series);
             }
             xySeriesCollection.addSeries(xySeries);
         }
         xySeries = new XYSeries(0);
-        for(int index = 4; index>=1;index--){
-            xySeries.add(index,null);
+        for (int index = 4; index >= 1; index--) {
+            xySeries.add(index, null);
         }
-        xySeries.add(4.5,2.5);
+        xySeries.add(4.5, 2.5);
         xySeriesCollection.addSeries(xySeries);
-        assertEquals("collection size should be same",xySeriesCollection.getSeriesCount(),dataset.getSeriesCount());
-        for(int series = 0;series<xySeriesCollection.getSeriesCount();series++){
+        assertEquals("collection size should be same", xySeriesCollection.getSeriesCount(), dataset.getSeriesCount());
+        for (int series = 0; series < xySeriesCollection.getSeriesCount(); series++) {
             XYSeries expectedXYSeries = xySeriesCollection.getSeries(series);
             XYSeries actualXYSeries = dataset.getSeries(series);
-            assertEquals("Series size should be same",expectedXYSeries.getItemCount(),actualXYSeries.getItemCount());
-            for(int item = 0;item<expectedXYSeries.getItemCount();item++){
-                assertEquals("X value should be same", expectedXYSeries.getX(item),actualXYSeries.getX(item));
-                assertEquals("Y value should be same", expectedXYSeries.getY(item),actualXYSeries.getY(item));
+            assertEquals("Series size should be same", expectedXYSeries.getItemCount(), actualXYSeries.getItemCount());
+            for (int item = 0; item < expectedXYSeries.getItemCount(); item++) {
+                assertEquals("X value should be same", expectedXYSeries.getX(item), actualXYSeries.getX(item));
+                assertEquals("Y value should be same", expectedXYSeries.getY(item), actualXYSeries.getY(item));
             }
         }
     }
