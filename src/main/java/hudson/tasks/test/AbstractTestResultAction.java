@@ -33,7 +33,18 @@ import hudson.util.ChartUtil.NumberOnlyBuildLabel;
 
 import java.awt.*;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -49,7 +60,11 @@ import org.jfree.chart.axis.CategoryAxis;
 import org.jfree.chart.axis.CategoryLabelPositions;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.labels.XYToolTipGenerator;
-import org.jfree.chart.plot.*;
+
+import org.jfree.chart.plot.CategoryPlot;
+import org.jfree.chart.plot.Marker;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.category.StackedAreaRenderer;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.chart.urls.XYURLGenerator;
@@ -112,7 +127,7 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
      * A map storing the testcase along with number of times it flapped and number of times it failed for displaying as
      * tool tip.
      */
-    private Map<Integer,ArrayList<Integer>> flapperInfo;
+    private Map<Integer, ArrayList<Integer>> flapperInfo;
 
     /**
      * A map storing number of test flappers at each build.
