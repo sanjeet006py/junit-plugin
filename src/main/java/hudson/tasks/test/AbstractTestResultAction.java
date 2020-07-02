@@ -741,7 +741,6 @@ public abstract class AbstractTestResultAction<T extends AbstractTestResultActio
         skipToolTip = new ConcurrentHashMap<>();
         totalToolTip = new ConcurrentHashMap<>();
         for (AbstractTestResultAction<?> testResultAction = this; testResultAction != null; testResultAction = testResultAction.getPreviousResult(AbstractTestResultAction.class)) {
-
             if (++count > cap) {
                 LOGGER.log(Level.FINE, "capping test trend for {0} at {1}", new Object[]{run, cap});
                 break;
