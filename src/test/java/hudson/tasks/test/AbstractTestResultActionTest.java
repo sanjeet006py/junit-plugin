@@ -856,29 +856,29 @@ public class AbstractTestResultActionTest {
         /*
         Verifying whether the getDuration() method was called required number of times and when expected.
          */
-        Mockito.verify(caseResult1,Mockito.times(5)).getDuration();
-        Mockito.verify(caseResult2,Mockito.times(7)).getDuration();
-        Mockito.verify(caseResult3,Mockito.times(7)).getDuration();
+        Mockito.verify(caseResult1, Mockito.times(5)).getDuration();
+        Mockito.verify(caseResult2, Mockito.times(7)).getDuration();
+        Mockito.verify(caseResult3, Mockito.times(7)).getDuration();
         /*
         Verifying the output.
          */
         String rowKey = "Lengthy Tests";
-        Run<?,?>[] runs = {run3,run2,run1,run};
+        Run<?, ?>[] runs = {run3, run2, run1, run};
         Assert.assertEquals("Row count should be same", 1, actualDataset.getRowCount());
         Assert.assertEquals("Column count should be same", 4, actualDataset.getColumnCount());
-        for(int index=0;index<runs.length;index++){
+        for (int index = 0; index < runs.length; index++) {
             ChartUtil.NumberOnlyBuildLabel label = new ChartUtil.NumberOnlyBuildLabel(runs[index]);
-            if(index==0){
+            if (index == 0) {
                 Assert.assertEquals("Value for a cell should be same", 0, actualDataset.getValue(rowKey, label));
             }
-            else if(index==1){
-                Assert.assertEquals("Value for a cell should be same",3, actualDataset.getValue(rowKey, label));
+            else if (index == 1) {
+                Assert.assertEquals("Value for a cell should be same", 3, actualDataset.getValue(rowKey, label));
             }
-            else if(index==2){
-                Assert.assertEquals("Value for a cell should be same",1, actualDataset.getValue(rowKey, label));
+            else if (index == 2) {
+                Assert.assertEquals("Value for a cell should be same", 1, actualDataset.getValue(rowKey, label));
             }
-            else{
-                Assert.assertEquals("Value for a cell should be same",2, actualDataset.getValue(rowKey, label));
+            else {
+                Assert.assertEquals("Value for a cell should be same", 2, actualDataset.getValue(rowKey, label));
             }
         }
     }
@@ -997,29 +997,29 @@ public class AbstractTestResultActionTest {
         /*
         Verifying whether the getDuration() method was called required number of times and when expected.
          */
-        Mockito.verify(caseResult1,Mockito.times(5)).getDuration();
-        Mockito.verify(caseResult2,Mockito.times(0)).getDuration();
-        Mockito.verify(caseResult3,Mockito.times(7)).getDuration();
+        Mockito.verify(caseResult1, Mockito.times(5)).getDuration();
+        Mockito.verify(caseResult2, Mockito.times(0)).getDuration();
+        Mockito.verify(caseResult3, Mockito.times(7)).getDuration();
         /*
         verifying output.
          */
         String rowKey = "Lengthy Tests";
-        Run<?,?>[] runs = {run3,run2,run1,run};
+        Run<?, ?>[] runs = {run3, run2, run1, run};
         Assert.assertEquals("Row count should be same", 1, actualDataset.getRowCount());
         Assert.assertEquals("Column count should be same", 4, actualDataset.getColumnCount());
-        for(int index=0;index<runs.length;index++){
+        for (int index = 0; index < runs.length; index++) {
             ChartUtil.NumberOnlyBuildLabel label = new ChartUtil.NumberOnlyBuildLabel(runs[index]);
-            if(index==0){
+            if (index == 0) {
                 Assert.assertEquals("Value for a cell should be same", 0, actualDataset.getValue(rowKey, label));
             }
-            else if(index==1){
-                Assert.assertEquals("Value for a cell should be same",2, actualDataset.getValue(rowKey, label));
+            else if (index == 1) {
+                Assert.assertEquals("Value for a cell should be same", 2, actualDataset.getValue(rowKey, label));
             }
-            else if(index==2){
-                Assert.assertEquals("Value for a cell should be same",1, actualDataset.getValue(rowKey, label));
+            else if (index == 2) {
+                Assert.assertEquals("Value for a cell should be same", 1, actualDataset.getValue(rowKey, label));
             }
-            else{
-                Assert.assertEquals("Value for a cell should be same",2, actualDataset.getValue(rowKey, label));
+            else {
+                Assert.assertEquals("Value for a cell should be same", 2, actualDataset.getValue(rowKey, label));
             }
         }
     }
