@@ -221,7 +221,7 @@ public class TestResultAction extends AbstractTestResultAction<TestResultAction>
      * junitResult.xml
      */
     @Override
-    public TestResult loadXml () {
+    public TestResult loadXml() {
         return getResult();
     }
 

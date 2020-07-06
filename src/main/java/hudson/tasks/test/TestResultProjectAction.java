@@ -143,7 +143,7 @@ public class TestResultProjectAction implements Action {
     /**
      * Changes the test result report display mode.
      */
-    public void doFlipTrend (StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
+    public void doFlipTrend(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         boolean failureOnly = false;
 
         // check the current preference value
@@ -166,13 +166,14 @@ public class TestResultProjectAction implements Action {
     }
 
     /**
-     * Method to flip the trend based on upon the criteria to used for ordering the testcases for the flapper trend i.e.
-     * whether to order the testcase on the basis of number of time it failed or on the basis of number times it flapped.
-     * @param req The HTTP request message incorporating api call this method.
+     * Method to flip the trend based on the criteria to be used for ordering the testcases for the flapper trend i.e.
+     * whether to order the testcase on the basis of number of times it failed or on the basis of number of times it
+     * flapped.
+     * @param req The HTTP request message incorporating api to call this method.
      * @param rsp The HTTP response message.
      * @throws IOException Can occur while redirecting.
      */
-    public void doFailFlapFlip (StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
+    public void doFailFlapFlip(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         String orderBy = FAILMETRIC;
 
         Cookie[] cookies = req.getCookies();
@@ -195,11 +196,11 @@ public class TestResultProjectAction implements Action {
 
     /**
      * Method to modify cookies for displaying requested trend.
-     * @param req The HTTP request message incorporating api call this method.
+     * @param req The HTTP request message incorporating api to call this method.
      * @param rsp The HTTP response message.
      * @throws IOException Can occur while redirecting.
      */
-    public void doSelectInput (StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
+    public void doSelectInput(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         AbstractTestResultAction a = getLastTestResultAction();
         String[] projectList;
         if (a != null) {
@@ -240,7 +241,7 @@ public class TestResultProjectAction implements Action {
      * @param cookieName Name of the cookie to be modified.
      * @param cookieValue New value of the cookie after modification.
      */
-    private void addCookie (StaplerRequest req, StaplerResponse rsp, String cookieName, String cookieValue) {
+    private void addCookie(StaplerRequest req, StaplerResponse rsp, String cookieName, String cookieValue) {
         Cookie cookie = new Cookie(cookieName, cookieValue);
         List anc = req.getAncestors();
         Ancestor a = (Ancestor) anc.get(anc.size() - 2);
@@ -255,7 +256,7 @@ public class TestResultProjectAction implements Action {
      * @param paramName The query parameter whose value needs to be extracted.
      * @return The value of the query parameter specified as paramName.
      */
-    private String getParameter (StaplerRequest req, String paramName) {
+    private String getParameter(StaplerRequest req, String paramName) {
         String paramValue = req.getParameter(paramName);
 
         /*

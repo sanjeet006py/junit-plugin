@@ -125,7 +125,7 @@ THE SOFTWARE.
 
         <!-- GET method is used by form in HTTP request. -->
         <form method="get">
-            <label for="projectMenu">Choose Project:</label><st:nbsp/>
+            <label for="projectMenu">Project:</label><st:nbsp/>
             <select name="projectLevel" id="projectMenu">
                 <j:choose>
                     <j:when test="${project=='AllProjects'}">
@@ -146,7 +146,7 @@ THE SOFTWARE.
                     </j:choose>
                 </j:forEach>
             </select><st:nbsp/>
-            <label for="trendMenu">Choose Trend Type:</label><st:nbsp/>
+            <label for="trendMenu">Trend Type:</label><st:nbsp/>
             <select name="trendType" id="trendMenu">
                 <j:choose>
                     <j:when test="${trend=='BuildAnalysis'}">
@@ -158,10 +158,10 @@ THE SOFTWARE.
                 </j:choose>
                 <j:choose>
                     <j:when test="${trend=='LengthyTests'}">
-                        <option value="LengthyTests_mean" selected="selected">Lengthy Tests Count</option>
+                        <option value="LengthyTests_mean" selected="selected">Longer Tests Count</option>
                     </j:when>
                     <j:otherwise>
-                        <option value="LengthyTests_mean">Lengthy Tests Count</option>
+                        <option value="LengthyTests_mean">Longer Tests Count</option>
                     </j:otherwise>
                 </j:choose>
                 <j:choose>

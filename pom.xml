@@ -152,6 +152,8 @@
         </dependencies>
     </dependencyManagement>
 
+    <!-- https://github.com/powermock/powermock-examples-maven/blob/master/jacoco-offline/pom.xml link for how to use
+    JaCoCo with Power Mock in offline mode.-->
     <build>
         <plugins>
             <plugin>

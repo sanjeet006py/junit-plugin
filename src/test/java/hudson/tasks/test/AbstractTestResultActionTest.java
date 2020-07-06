@@ -54,10 +54,10 @@ public class AbstractTestResultActionTest {
 
     /**
      * Testcase for testing the {@link AbstractTestResultAction#getProjectList()} which is responsible for generating
-     * the drop down list showing all the project names.
+     * the drop down list showing all the project names without any list compression.
      */
     @Test
-    public void getProjectListTest () {
+    public void getProjectListWithoutListCompression() {
         /*
         Mocking TestResult Object.
          */
@@ -109,6 +109,85 @@ public class AbstractTestResultActionTest {
         Verifying the output.
          */
         Assert.assertArrayEquals("Both arrays should be same", expectedProjectList, actualProjectList);
+        /*
+        Calling getProjectList() method for testing whether stored list is fetched.
+         */
+        actualProjectList = abstractTestResultAction.getProjectList();
+        /*
+        Verifying behaviour on calling getProjectList() on same object second time.
+         */
+        Mockito.verify(abstractTestResultAction, Mockito.times(1)).loadXml();
+        /*
+        Verifying the output.
+         */
+        Assert.assertArrayEquals("Both arrays should be same again", expectedProjectList, actualProjectList);
+    }
+
+    /**
+     * Testcase for testing the {@link AbstractTestResultAction#getProjectList()} which is responsible for generating
+     * the drop down list showing all the project names and compressing the list as it gets too large.
+     */
+    @Test
+    public void getProjectListWithListCompression() {
+        /*
+        Mocking TestResult Object.
+         */
+        TestResult testResult = PowerMockito.mock(TestResult.class);
+        /*
+        Mocking SuiteResult object.
+         */
+        SuiteResult[] suiteResults = new SuiteResult[52];
+        for (int suiteIndex = 0; suiteIndex < 52; suiteIndex++) {
+            suiteResults[suiteIndex] = PowerMockito.mock(SuiteResult.class);
+        }
+        /*
+        Getting TestResultAction object as it is the implementing class of AbstractTestResultAction. And suppressing the
+        setResult() & onAttached() method which are called from inside the TestResultAction and AbstractTestResultAction
+        Constructor.
+         */
+        MemberModifier.suppress(MemberMatcher.method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        MemberModifier.suppress(MemberMatcher.method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = PowerMockito.spy(new TestResultAction(null, null, null));
+        /*
+        Making a list of test suites.
+         */
+        Collection<SuiteResult> suiteList = new ArrayList<>();
+        for (int suiteIndex = 0; suiteIndex < 52; suiteIndex++) {
+            suiteList.add(suiteResults[suiteIndex]);
+        }
+        /*
+        Mocking loading of xml file.
+         */
+        PowerMockito.doReturn(testResult).when(abstractTestResultAction).loadXml();
+        /*
+        Mocking call to getSuites() to fetch the list of test suites.
+         */
+        PowerMockito.doReturn(suiteList).when(testResult).getSuites();
+        /*
+        Expected output.
+         */
+        String[] expectedProjectList = new String[50];
+        /*
+        Mocking the getName() method to fetch the name of test suite and generating expected output.
+         */
+        String packageName = "org.apache.hadoop";
+        for (int suiteIndex = 0; suiteIndex < 52; suiteIndex++) {
+            if (suiteIndex < 50) {
+                expectedProjectList[suiteIndex] = packageName;
+            }
+            PowerMockito.doReturn(packageName + ".Suite").when(suiteResults[suiteIndex]).getName();
+            if (suiteIndex < 51) {
+                packageName += ".s";
+            }
+        }
+        /*
+        Calling the getProjectList() method for testing.
+         */
+        String[] actualProjectList = abstractTestResultAction.getProjectList();
+        /*
+        Verifying the output.
+         */
+        Assert.assertArrayEquals("Both arrays should be same", expectedProjectList, actualProjectList);
     }
 
     /**
@@ -116,7 +195,7 @@ public class AbstractTestResultActionTest {
      * is not null in the HTTP request header.
      */
     @Test
-    public void getParametersWhenParamValueIsNotNull () throws Exception {
+    public void getParametersWhenParamValueIsNotNull() throws Exception {
         /*
         Mocking StaplerRequest object.
          */
@@ -150,7 +229,7 @@ public class AbstractTestResultActionTest {
      * for parameter "metricName" is null in the HTTP request header.
      */
     @Test
-    public void getParametersWhenMetricNameIsNull () throws Exception {
+    public void getParametersWhenMetricNameIsNull() throws Exception {
         /*
         Mocking StaplerRequest object.
          */
@@ -184,7 +263,7 @@ public class AbstractTestResultActionTest {
      * for parameter "trendType" is null in the HTTP request header.
      */
     @Test
-    public void getParametersWhenTrendTypeIsNull () throws Exception {
+    public void getParametersWhenTrendTypeIsNull() throws Exception {
         /*
         Mocking StaplerRequest object.
          */
@@ -218,7 +297,7 @@ public class AbstractTestResultActionTest {
      * for parameter "projectLevel" is null in the HTTP request header.
      */
     @Test
-    public void getParametersWhenProjectLevelIsNull () throws Exception {
+    public void getParametersWhenProjectLevelIsNull() throws Exception {
         /*
         Mocking StaplerRequest object.
          */
@@ -252,7 +331,7 @@ public class AbstractTestResultActionTest {
      * for parameter "orderBy" is null in the HTTP request header.
      */
     @Test
-    public void getParametersWhenOrderByIsNull () throws Exception {
+    public void getParametersWhenOrderByIsNull() throws Exception {
         /*
         Mocking StaplerRequest object.
          */
@@ -286,7 +365,7 @@ public class AbstractTestResultActionTest {
      * for parameter "failureOnly" is null in the HTTP request header.
      */
     @Test
-    public void getParametersWhenFailureOnlyIsNull () throws Exception {
+    public void getParametersWhenFailureOnlyIsNull() throws Exception {
         /*
         Mocking StaplerRequest object.
          */
@@ -320,7 +399,7 @@ public class AbstractTestResultActionTest {
      * and the a particular project was chosen.
      */
     @Test
-    public void buildFlapperDatasetTestWithoutFlapper () throws Exception {
+    public void buildFlapperDatasetTestWithoutFlapper() throws Exception {
         /*
         Getting TestResultAction objects as it is the implementing class of AbstractTestResultAction. And suppressing the
         setResult() & onAttached() method which are called from inside the TestResultAction and AbstractTestResultAction
@@ -451,7 +530,7 @@ public class AbstractTestResultActionTest {
      * and all the projects were chosen.
      */
     @Test
-    public void buildFlapperDatasetTestWithFlapper () throws Exception {
+    public void buildFlapperDatasetTestWithFlapper() throws Exception {
         /*
         Getting TestResultAction objects as it is the implementing class of AbstractTestResultAction. And suppressing the
         setResult() & onAttached() method which are called from inside the TestResultAction and AbstractTestResultAction
@@ -595,7 +674,7 @@ public class AbstractTestResultActionTest {
      * project was chosen.
      */
     @Test
-    public void buildDatasetPerProjectTest () throws Exception {
+    public void buildDatasetPerProjectTest() throws Exception {
         /*
         Getting TestResultAction objects as it is the implementing class of AbstractTestResultAction. And suppressing the
         setResult() & onAttached() method which are called from inside the TestResultAction and AbstractTestResultAction
@@ -747,7 +826,7 @@ public class AbstractTestResultActionTest {
      * were chosen and metric used was "mean".
      */
     @Test
-    public void buildLengthyTestDatasetWithMeanAsMetric () throws Exception {
+    public void buildLengthyTestDatasetWithMeanAsMetric() throws Exception {
         /*
         Getting TestResultAction objects as it is the implementing class of AbstractTestResultAction. And suppressing the
         setResult() & onAttached() method which are called from inside the TestResultAction and AbstractTestResultAction
@@ -852,7 +931,7 @@ public class AbstractTestResultActionTest {
         /*
         Calling buildLengthyTestDataset() method for testing.
          */
-        CategoryDataset actualDataset = Whitebox.invokeMethod(abstractTestResultAction, "buildLengthyTestDataset", staplerRequest);
+        CategoryDataset actualDataset = Whitebox.invokeMethod(abstractTestResultAction, "buildLongerTestDataset", staplerRequest);
         /*
         Verifying whether the getDuration() method was called required number of times and when expected.
          */
@@ -888,7 +967,7 @@ public class AbstractTestResultActionTest {
      * was chosen and metric used was "max".
      */
     @Test
-    public void buildLengthyTestDatasetWithMaxAsMetric () throws Exception {
+    public void buildLengthyTestDatasetWithMaxAsMetric() throws Exception {
         /*
         Getting TestResultAction objects as it is the implementing class of AbstractTestResultAction. And suppressing the
         setResult() & onAttached() method which are called from inside the TestResultAction and AbstractTestResultAction
@@ -985,15 +1064,14 @@ public class AbstractTestResultActionTest {
         PowerMockito.doReturn("Test2").when(caseResult2).getName();
         PowerMockito.doReturn("Test3").when(caseResult3).getName();
         /*
-        Mocking the call to getDuration() method for each test case.
+        Mocking the call to getDuration() method for each passed test case.
          */
         PowerMockito.doReturn(1.0f, 1.5f, 1.5f, 1.6f, 1.6f).when(caseResult1).getDuration();
-        PowerMockito.doReturn(1.0f, 1.5f, 1.5f, 0.5f, 0.5f, 1.7f, 1.7f).when(caseResult2).getDuration();
         PowerMockito.doReturn(1.0f, 1.5f, 1.5f, 1.7f, 1.7f, 1.9f, 1.9f).when(caseResult3).getDuration();
         /*
         Calling buildLengthyTestDataset() method for testing.
          */
-        CategoryDataset actualDataset = Whitebox.invokeMethod(abstractTestResultAction, "buildLengthyTestDataset", staplerRequest);
+        CategoryDataset actualDataset = Whitebox.invokeMethod(abstractTestResultAction, "buildLongerTestDataset", staplerRequest);
         /*
         Verifying whether the getDuration() method was called required number of times and when expected.
          */
@@ -1020,6 +1098,286 @@ public class AbstractTestResultActionTest {
             }
             else {
                 Assert.assertEquals("Value for a cell should be same", 2, actualDataset.getValue(rowKey, label));
+            }
+        }
+    }
+
+    /**
+     * Testcase for testing the {AbstractTestResultAction#buildLengthyTestDataset(StaplerRequest)} when a specific project
+     * was chosen and metric used was "prev".
+     */
+    @Test
+    public void buildLengthyTestDatasetWithPrevAsMetric() throws Exception {
+        /*
+        Getting TestResultAction objects as it is the implementing class of AbstractTestResultAction. And suppressing the
+        setResult() & onAttached() method which are called from inside the TestResultAction and AbstractTestResultAction
+        Constructor.
+         */
+        MemberModifier.suppress(MemberMatcher.method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        MemberModifier.suppress(MemberMatcher.method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction1 = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction2 = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction3 = PowerMockito.spy(new TestResultAction(null, null, null));
+        /*
+        Generating Run objects.
+         */
+        Run<?, ?> run = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run1 = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run2 = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run3 = Whitebox.newInstance(FreeStyleBuild.class);
+        /*
+        Setting run number for the corresponding run objects.
+         */
+        run.number = 4;
+        run1.number = 3;
+        run2.number = 2;
+        run3.number = 1;
+        Whitebox.setInternalState(abstractTestResultAction, "run", run);
+        Whitebox.setInternalState(abstractTestResultAction1, "run", run1);
+        Whitebox.setInternalState(abstractTestResultAction2, "run", run2);
+        Whitebox.setInternalState(abstractTestResultAction3, "run", run3);
+        /*
+        Mocking StaplerRequest object.
+         */
+        StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
+        /*
+        Mocking getParameter() call.
+         */
+        PowerMockito.doReturn("org").when(abstractTestResultAction, "getParameter", staplerRequest, "projectLevel");
+        PowerMockito.doReturn("prev").when(abstractTestResultAction, "getParameter", staplerRequest, "metricName");
+        /*
+        Mocking reading of max number of previous builds to consider by reading system properties.
+         */
+        PowerMockito.spy(Integer.class);
+        PowerMockito.when(Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE)).thenReturn(Integer.MAX_VALUE);
+        /*
+        Mocking getPreviousResult() to iterate over the previous builds.
+         */
+        PowerMockito.doReturn(abstractTestResultAction1).when(abstractTestResultAction).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(abstractTestResultAction2).when(abstractTestResultAction1).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(abstractTestResultAction3).when(abstractTestResultAction2).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(null).when(abstractTestResultAction3).getPreviousResult(AbstractTestResultAction.class);
+        /*
+        Mocking TestResult object.
+         */
+        TestResult allPassTestResult = PowerMockito.mock(TestResult.class);
+        TestResult notAllPassTestResult = PowerMockito.mock(TestResult.class);
+        /*
+        Mocking CaseResult object.
+         */
+        CaseResult caseResult1 = PowerMockito.mock(CaseResult.class);
+        CaseResult caseResult2 = PowerMockito.mock(CaseResult.class);
+        CaseResult caseResult3 = PowerMockito.mock(CaseResult.class);
+        /*
+        Generating the list of all test cases and passed test cases.
+         */
+        List<CaseResult> caseResultList = new ArrayList<>();
+        caseResultList.add(caseResult1);
+        caseResultList.add(caseResult2);
+        caseResultList.add(caseResult3);
+        List<CaseResult> passCaseResultList = new ArrayList<>();
+        passCaseResultList.add(caseResult2);
+        passCaseResultList.add(caseResult3);
+        /*
+        Mocking loading of xml file.
+         */
+        PowerMockito.doReturn(allPassTestResult).when(abstractTestResultAction).loadXml();
+        PowerMockito.doReturn(notAllPassTestResult).when(abstractTestResultAction1).loadXml();
+        PowerMockito.doReturn(allPassTestResult).when(abstractTestResultAction2).loadXml();
+        PowerMockito.doReturn(allPassTestResult).when(abstractTestResultAction3).loadXml();
+        /*
+        Getting the list of passed test cases.
+         */
+        PowerMockito.doReturn(caseResultList).when(allPassTestResult).getPassedTests();
+        PowerMockito.doReturn(passCaseResultList).when(notAllPassTestResult).getPassedTests();
+        /*
+        Getting full classified name of all the test cases.
+         */
+        PowerMockito.doReturn("org.salesforce.hadoop.Class1.Test1").when(caseResult1).getFullName();
+        PowerMockito.doReturn("org.apache.hbase.Class2.Test2").when(caseResult2).getFullName();
+        PowerMockito.doReturn("com.salesforce.phoenix.Class3.Test3").when(caseResult3).getFullName();
+        /*
+        Getting just the name of the testcase for all the test cases.
+         */
+        PowerMockito.doReturn("Test1").when(caseResult1).getName();
+        PowerMockito.doReturn("Test2").when(caseResult2).getName();
+        PowerMockito.doReturn("Test3").when(caseResult3).getName();
+        /*
+        Mocking the call to getDuration() method for each passed test case.
+         */
+        PowerMockito.doReturn(1.0f, 1.5f, 1.5f, 0.6f, 0.6f).when(caseResult1).getDuration();
+        PowerMockito.doReturn(1.0f, 1.5f, 1.5f, 1.6f, 1.6f, 1.0f, 1.0f).when(caseResult2).getDuration();
+        /*
+        Calling buildLengthyTestDataset() method for testing.
+         */
+        CategoryDataset actualDataset = Whitebox.invokeMethod(abstractTestResultAction, "buildLongerTestDataset", staplerRequest);
+        /*
+        Verifying whether the getDuration() method was called required number of times and when expected.
+         */
+        Mockito.verify(caseResult1, Mockito.times(5)).getDuration();
+        Mockito.verify(caseResult2, Mockito.times(7)).getDuration();
+        Mockito.verify(caseResult3, Mockito.times(0)).getDuration();
+        /*
+        verifying output.
+         */
+        String rowKey = "Lengthy Tests";
+        Run<?, ?>[] runs = {run3, run2, run1, run};
+        Assert.assertEquals("Row count should be same", 1, actualDataset.getRowCount());
+        Assert.assertEquals("Column count should be same", 4, actualDataset.getColumnCount());
+        for (int index = 0; index < runs.length; index++) {
+            ChartUtil.NumberOnlyBuildLabel label = new ChartUtil.NumberOnlyBuildLabel(runs[index]);
+            if (index == 0) {
+                Assert.assertEquals("Value for a cell should be same", 0, actualDataset.getValue(rowKey, label));
+            }
+            else if (index == 1) {
+                Assert.assertEquals("Value for a cell should be same", 2, actualDataset.getValue(rowKey, label));
+            }
+            else if (index == 2) {
+                Assert.assertEquals("Value for a cell should be same", 1, actualDataset.getValue(rowKey, label));
+            }
+            else {
+                Assert.assertEquals("Value for a cell should be same", 0, actualDataset.getValue(rowKey, label));
+            }
+        }
+    }
+
+    /**
+     * Testcase for testing the {AbstractTestResultAction#buildLengthyTestDataset(StaplerRequest)} when a specific project
+     * was chosen and metric used was "threshold".
+     */
+    @Test
+    public void buildLengthyTestDatasetWithThresholdAsMetric() throws Exception {
+        /*
+        Getting TestResultAction objects as it is the implementing class of AbstractTestResultAction. And suppressing the
+        setResult() & onAttached() method which are called from inside the TestResultAction and AbstractTestResultAction
+        Constructor.
+         */
+        MemberModifier.suppress(MemberMatcher.method(TestResultAction.class, "setResult", TestResult.class, TaskListener.class));
+        MemberModifier.suppress(MemberMatcher.method(AbstractTestResultAction.class, "onAttached"));
+        AbstractTestResultAction<?> abstractTestResultAction = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction1 = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction2 = PowerMockito.spy(new TestResultAction(null, null, null));
+        AbstractTestResultAction<?> abstractTestResultAction3 = PowerMockito.spy(new TestResultAction(null, null, null));
+        /*
+        Generating Run objects.
+         */
+        Run<?, ?> run = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run1 = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run2 = Whitebox.newInstance(FreeStyleBuild.class);
+        Run<?, ?> run3 = Whitebox.newInstance(FreeStyleBuild.class);
+        /*
+        Setting run number for the corresponding run objects.
+         */
+        run.number = 4;
+        run1.number = 3;
+        run2.number = 2;
+        run3.number = 1;
+        Whitebox.setInternalState(abstractTestResultAction, "run", run);
+        Whitebox.setInternalState(abstractTestResultAction1, "run", run1);
+        Whitebox.setInternalState(abstractTestResultAction2, "run", run2);
+        Whitebox.setInternalState(abstractTestResultAction3, "run", run3);
+        /*
+        Mocking StaplerRequest object.
+         */
+        StaplerRequest staplerRequest = PowerMockito.mock(StaplerRequest.class);
+        /*
+        Mocking getParameter() call.
+         */
+        PowerMockito.doReturn("org").when(abstractTestResultAction, "getParameter", staplerRequest, "projectLevel");
+        PowerMockito.doReturn("threshold").when(abstractTestResultAction, "getParameter", staplerRequest, "metricName");
+        /*
+        Mocking reading of max number of previous builds to consider by reading system properties.
+         */
+        PowerMockito.spy(Integer.class);
+        PowerMockito.when(Integer.getInteger(AbstractTestResultAction.class.getName() + ".test.trend.max", Integer.MAX_VALUE)).thenReturn(Integer.MAX_VALUE);
+        /*
+        Mocking getPreviousResult() to iterate over the previous builds.
+         */
+        PowerMockito.doReturn(abstractTestResultAction1).when(abstractTestResultAction).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(abstractTestResultAction2).when(abstractTestResultAction1).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(abstractTestResultAction3).when(abstractTestResultAction2).getPreviousResult(AbstractTestResultAction.class);
+        PowerMockito.doReturn(null).when(abstractTestResultAction3).getPreviousResult(AbstractTestResultAction.class);
+        /*
+        Mocking TestResult object.
+         */
+        TestResult allPassTestResult = PowerMockito.mock(TestResult.class);
+        TestResult notAllPassTestResult = PowerMockito.mock(TestResult.class);
+        /*
+        Mocking CaseResult object.
+         */
+        CaseResult caseResult1 = PowerMockito.mock(CaseResult.class);
+        CaseResult caseResult2 = PowerMockito.mock(CaseResult.class);
+        CaseResult caseResult3 = PowerMockito.mock(CaseResult.class);
+        /*
+        Generating the list of all test cases and passed test cases.
+         */
+        List<CaseResult> caseResultList = new ArrayList<>();
+        caseResultList.add(caseResult1);
+        caseResultList.add(caseResult2);
+        caseResultList.add(caseResult3);
+        List<CaseResult> passCaseResultList = new ArrayList<>();
+        passCaseResultList.add(caseResult2);
+        passCaseResultList.add(caseResult3);
+        /*
+        Mocking loading of xml file.
+         */
+        PowerMockito.doReturn(allPassTestResult).when(abstractTestResultAction).loadXml();
+        PowerMockito.doReturn(notAllPassTestResult).when(abstractTestResultAction1).loadXml();
+        PowerMockito.doReturn(allPassTestResult).when(abstractTestResultAction2).loadXml();
+        PowerMockito.doReturn(allPassTestResult).when(abstractTestResultAction3).loadXml();
+        /*
+        Getting the list of passed test cases.
+         */
+        PowerMockito.doReturn(caseResultList).when(allPassTestResult).getPassedTests();
+        PowerMockito.doReturn(passCaseResultList).when(notAllPassTestResult).getPassedTests();
+        /*
+        Getting full classified name of all the test cases.
+         */
+        PowerMockito.doReturn("org.salesforce.hadoop.Class1.Test1").when(caseResult1).getFullName();
+        PowerMockito.doReturn("org.apache.hbase.Class2.Test2").when(caseResult2).getFullName();
+        PowerMockito.doReturn("com.salesforce.phoenix.Class3.Test3").when(caseResult3).getFullName();
+        /*
+        Getting just the name of the testcase for all the test cases.
+         */
+        PowerMockito.doReturn("Test1").when(caseResult1).getName();
+        PowerMockito.doReturn("Test2").when(caseResult2).getName();
+        PowerMockito.doReturn("Test3").when(caseResult3).getName();
+        /*
+        Mocking the call to getDuration() method for each passed test case.
+         */
+        PowerMockito.doReturn(0.001f, 0.003f, 0.002f).when(caseResult1).getDuration();
+        PowerMockito.doReturn(0.003f, 0.001f, 0.002f, 0.003f).when(caseResult2).getDuration();
+        /*
+        Calling buildLengthyTestDataset() method for testing.
+         */
+        CategoryDataset actualDataset = Whitebox.invokeMethod(abstractTestResultAction, "buildLongerTestDataset", staplerRequest);
+        /*
+        Verifying whether the getDuration() method was called required number of times and when expected.
+         */
+        Mockito.verify(caseResult1, Mockito.times(3)).getDuration();
+        Mockito.verify(caseResult2, Mockito.times(4)).getDuration();
+        Mockito.verify(caseResult3, Mockito.times(0)).getDuration();
+        /*
+        verifying output.
+         */
+        String rowKey = "Lengthy Tests";
+        Run<?, ?>[] runs = {run3, run2, run1, run};
+        Assert.assertEquals("Row count should be same", 1, actualDataset.getRowCount());
+        Assert.assertEquals("Column count should be same", 4, actualDataset.getColumnCount());
+        for (int index = 0; index < runs.length; index++) {
+            ChartUtil.NumberOnlyBuildLabel label = new ChartUtil.NumberOnlyBuildLabel(runs[index]);
+            if (index == 0) {
+                Assert.assertEquals("Value for a cell should be same", 1, actualDataset.getValue(rowKey, label));
+            }
+            else if (index == 1) {
+                Assert.assertEquals("Value for a cell should be same", 1, actualDataset.getValue(rowKey, label));
+            }
+            else if (index == 2) {
+                Assert.assertEquals("Value for a cell should be same", 0, actualDataset.getValue(rowKey, label));
+            }
+            else {
+                Assert.assertEquals("Value for a cell should be same", 1, actualDataset.getValue(rowKey, label));
             }
         }
     }
