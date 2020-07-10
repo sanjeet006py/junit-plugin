@@ -54,13 +54,11 @@ public class TestResultProjectAction implements Action {
     private static final String PROJECT_LEVEL_COOKIE = "TestResultAction_projectLevel";
     private static final String TREND_TYPE_COOKIE = "TestResultAction_trendType";
     private static final String METRIC_NAME_COOKIE = "TestResultAction_metricName";
-    private static final String ORDER_BY_COOKIE = "TestResultAction_orderBy";
     private static final String ALL_PROJECTS = "AllProjects";
     private static final String BUILD_ANALYSIS = "BuildAnalysis";
     private static final String LENGTHY_TESTS_MEAN = "LengthyTests_mean";
-    private static final String FLAKY_TESTS = "FlakyTests";
-    private static final String FAILMETRIC = "fail";
-    private static final String FLAPMETRIC = "flap";
+    private static final String TOP_FAILED_TESTS = "TopFailedTests";
+    private static final String TOP_TEST_FLAPPERS = "TopTestFlappers";
     private static final String PROJECTLEVEL = "projectLevel";
     private static final String TRENDTYPE = "trendType";
 
@@ -166,35 +164,6 @@ public class TestResultProjectAction implements Action {
     }
 
     /**
-     * Method to flip the trend based on the criteria to be used for ordering the testcases for the flapper trend i.e.
-     * whether to order the testcase on the basis of number of times it failed or on the basis of number of times it
-     * flapped.
-     * @param req The HTTP request message incorporating api to call this method.
-     * @param rsp The HTTP response message.
-     * @throws IOException Can occur while redirecting.
-     */
-    public void doFailFlapFlip(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
-        String orderBy = FAILMETRIC;
-
-        Cookie[] cookies = req.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if (cookie.getName().equals(ORDER_BY_COOKIE))
-                    orderBy = cookie.getValue();
-            }
-        }
-
-        if (orderBy.equals(FAILMETRIC)) {
-            orderBy = FLAPMETRIC;
-        }
-        else {
-            orderBy = FAILMETRIC;
-        }
-        addCookie(req, rsp, ORDER_BY_COOKIE, orderBy);
-        rsp.sendRedirect("..");
-    }
-
-    /**
      * Method to modify cookies for displaying requested trend.
      * @param req The HTTP request message incorporating api to call this method.
      * @param rsp The HTTP response message.
@@ -210,7 +179,7 @@ public class TestResultProjectAction implements Action {
                 projectLevel = ALL_PROJECTS;
             }
             String trendType = getParameter(req, TRENDTYPE);
-            if (!trendType.equals(BUILD_ANALYSIS) && !trendType.equals(LENGTHY_TESTS_MEAN) && !trendType.equals(FLAKY_TESTS)) {
+            if (!trendType.equals(LENGTHY_TESTS_MEAN) && !trendType.equals(TOP_FAILED_TESTS) && !trendType.equals(TOP_TEST_FLAPPERS)) {
                 trendType = BUILD_ANALYSIS;
             }
             int indx = trendType.lastIndexOf('_');

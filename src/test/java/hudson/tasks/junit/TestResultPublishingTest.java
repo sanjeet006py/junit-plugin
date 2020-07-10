@@ -130,13 +130,13 @@ public class TestResultPublishingTest {
         //      after "Latest Test Result" it should say "no failures"
         rule.assertXPathResultsContainText(projectPage, "//td", "(no failures)");
         //      there should be a test result trend graph
-        rule.assertXPath(projectPage, "//img[@src='test/trend?failureOnly=false&projectLevel=AllProjects&trendType=BuildAnalysis&metricName=Default&orderBy=fail']");
+        rule.assertXPath(projectPage, "//img[@src='test/trend?failureOnly=false&projectLevel=AllProjects&trendType=BuildAnalysis&metricName=Default']");
         // the trend graph should be served up with a good http status
-        Page trendGraphPage = wc.goTo(proj.getUrl() + "/test/trend?failureOnly=false&projectLevel=AllProjects&trendType=BuildAnalysis&metricName=Default&orderBy=fail", "image/png");
+        Page trendGraphPage = wc.goTo(proj.getUrl() + "/test/trend?failureOnly=false&projectLevel=AllProjects&trendType=BuildAnalysis&metricName=Default", "image/png");
         rule.assertGoodStatus(trendGraphPage);
 
         // The trend graph should be clickable and take us to a run details page
-        Object imageNode = projectPage.getFirstByXPath("//img[@src='test/trend?failureOnly=false&projectLevel=AllProjects&trendType=BuildAnalysis&metricName=Default&orderBy=fail']");
+        Object imageNode = projectPage.getFirstByXPath("//img[@src='test/trend?failureOnly=false&projectLevel=AllProjects&trendType=BuildAnalysis&metricName=Default']");
         assertNotNull("couldn't find any matching nodes", imageNode);
         assertTrue("image node should be an HtmlImage object", imageNode instanceof HtmlImage);
         // TODO: Check that we can click on the graph and get to a particular run. How do I do this with HtmlUnit?

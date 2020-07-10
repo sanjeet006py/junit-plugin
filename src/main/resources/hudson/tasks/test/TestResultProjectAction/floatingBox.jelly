@@ -32,7 +32,6 @@ THE SOFTWARE.
       <j:set var="project" value="${h.getCookie(request,'TestResultAction_projectLevel').value}" />
       <j:set var="trend" value="${h.getCookie(request,'TestResultAction_trendType').value}" />
       <j:set var="metric" value="${h.getCookie(request,'TestResultAction_metricName').value}" />
-      <j:set var="order" value="${h.getCookie(request,'TestResultAction_orderBy').value}" />
 	    <!-- If any of the above declared variables equals null then default value is assigned to the corresponding
 	        query parameter in url. -->
 	    <j:choose>
@@ -75,21 +74,19 @@ THE SOFTWARE.
 	            <j:set var="metricQueryString2" value="&amp;metricName=Default" />
 	        </j:otherwise>
 	    </j:choose>
-	    <j:choose>
-	        <j:when test="${order!=null}">
-	            <j:set var="orderQueryString1" value="&amp;orderBy=${order}" />
-	            <j:set var="orderQueryString2" value="&amp;orderBy=${order}" />
-	        </j:when>
-	        <j:otherwise>
-	            <j:set var="orderQueryString1" value="&amp;orderBy=fail" />
-	            <j:set var="orderQueryString2" value="&amp;orderBy=fail" />
-	        </j:otherwise>
-	    </j:choose>
 	    <div class="test-trend-caption">
 	        ${%Test Result Trend}
 	    </div>
 	    <div>
-	        <img src="test/trend${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" lazymap="test/trendMap${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1+orderQueryString1}" alt="[Test result trend chart]"/>
+	        <img src="test/trend${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1}" lazymap="test/trendMap${trendQueryString1+projectQueryString1+typeQueryString1+metricQueryString1}" alt="[Test result trend chart]"/>
+	    </div>
+	    <div>
+	        <j:if test="${trend=='TopFailedTests'}">
+	            ${%Note: The gaps in the horizontal lines signify the testcase getting passed or being skipped.}
+	        </j:if>
+	        <j:if test="${trend=='TopTestFlappers'}">
+                ${%Note: The gaps in the horizontal lines signify the testcase getting failed or being skipped.}
+            </j:if>
 	    </div>
 	    <div style="text-align:right">
 	        <j:if test="${trend=='BuildAnalysis'||trend==null}">
@@ -101,17 +98,8 @@ THE SOFTWARE.
 	                </j:choose>
 	            </a>
 	        </j:if>
-	        <j:if test="${trend=='FlakyTests'}">
-	            <a href="test/failFlapFlip">
-	                <j:choose>
-	                <!-- needs to strip whitespace here -->
-	                    <j:when test="${order=='fail'}">(${%order by flappers})</j:when>
-	                    <j:otherwise>(${%order by failures})</j:otherwise>
-	                </j:choose>
-	            </a>
-	        </j:if>
 	        <st:nbsp/>
-	        <a href="test/?width=800&amp;height=600${trendQueryString2+projectQueryString2+typeQueryString2+metricQueryString2+orderQueryString2}">
+	        <a href="test/?width=800&amp;height=600${trendQueryString2+projectQueryString2+typeQueryString2+metricQueryString2}">
 	            ${%enlarge}
 	        </a>
 	    </div>
@@ -165,15 +153,22 @@ THE SOFTWARE.
                     </j:otherwise>
                 </j:choose>
                 <j:choose>
-                    <j:when test="${trend=='FlakyTests'}">
-                        <option value="FlakyTests" selected="selected">Test Flappers Count</option>
+                    <j:when test="${trend=='TopFailedTests'}">
+                        <option value="TopFailedTests" selected="selected">Top Failed Tests</option>
                     </j:when>
                     <j:otherwise>
-                        <option value="FlakyTests">Test Flappers Count</option>
+                        <option value="TopFailedTests">Top Failed Tests</option>
+                    </j:otherwise>
+                </j:choose>
+                <j:choose>
+                    <j:when test="${trend=='TopTestFlappers'}">
+                        <option value="TopTestFlappers" selected="selected">Top Test Flappers</option>
+                    </j:when>
+                    <j:otherwise>
+                        <option value="TopTestFlappers">Top Test Flappers</option>
                     </j:otherwise>
                 </j:choose>
             </select><st:nbsp/>
-
             <!-- Button is of "submit" type to make use of "formaction" attribute of "button" tag in HTML for
             making api call. -->
             <button type="submit" formaction="test/selectInput">Submit</button><st:nbsp/>
