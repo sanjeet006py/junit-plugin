@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableSet;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
+import hudson.Util;
 import hudson.model.Descriptor;
 import hudson.model.Saveable;
 import hudson.model.TaskListener;
@@ -52,6 +53,8 @@ public class JUnitResultsStep extends Step implements JUnitTask {
      * If true, don't throw exception on missing test results or no files found.
      */
     private boolean allowEmptyResults;
+    private boolean skipPublishingChecks;
+    private String checksName;
 
     @DataBoundConstructor
     public JUnitResultsStep(String testResults) {
@@ -113,6 +116,31 @@ public class JUnitResultsStep extends Step implements JUnitTask {
      */
     public boolean isAllowEmptyResults() {
         return allowEmptyResults;
+    }
+
+    /**
+     * Should we skip publishing checks to the checks API plugin.
+     *
+     * @return if publishing checks should be skipped, {@code false} otherwise 
+     */
+    @Override
+    public boolean isSkipPublishingChecks() {
+        return skipPublishingChecks;
+    }
+
+    @DataBoundSetter
+    public void setSkipPublishingChecks(boolean skipPublishingChecks) {
+        this.skipPublishingChecks = skipPublishingChecks;
+    }
+
+    @Override
+    public String getChecksName() {
+        return Util.fixEmpty(checksName);
+    }
+
+    @DataBoundSetter
+    public void setChecksName(String checksName) {
+        this.checksName = checksName;
     }
 
     @DataBoundSetter public final void setAllowEmptyResults(boolean allowEmptyResults) {

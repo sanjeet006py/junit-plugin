@@ -2,17 +2,19 @@ package hudson.tasks.junit.pipeline;
 
 import hudson.FilePath;
 import hudson.Launcher;
+import hudson.Util;
 import hudson.model.Result;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.tasks.junit.JUnitResultArchiver;
-import hudson.tasks.junit.TestResult;
-import hudson.tasks.junit.TestResultAction;
 import hudson.tasks.junit.TestResultSummary;
 import hudson.tasks.test.PipelineTestDetails;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import javax.annotation.Nonnull;
+
+import io.jenkins.plugins.checks.steps.ChecksInfo;
 import org.jenkinsci.plugins.workflow.actions.LabelAction;
 import org.jenkinsci.plugins.workflow.actions.ThreadNameAction;
 import org.jenkinsci.plugins.workflow.actions.WarningAction;
@@ -21,6 +23,8 @@ import org.jenkinsci.plugins.workflow.graph.StepNode;
 import org.jenkinsci.plugins.workflow.steps.StepContext;
 import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
 import org.jenkinsci.plugins.workflow.steps.SynchronousNonBlockingStepExecution;
+
+import static java.util.Objects.requireNonNull;
 
 public class JUnitResultsStepExecution extends SynchronousNonBlockingStepExecution<TestResultSummary> {
 
@@ -35,7 +39,7 @@ public class JUnitResultsStepExecution extends SynchronousNonBlockingStepExecuti
     protected TestResultSummary run() throws Exception {
         FilePath workspace = getContext().get(FilePath.class);
         workspace.mkdirs();
-        Run<?,?> run = getContext().get(Run.class);
+        Run<?,?> run = requireNonNull(getContext().get(Run.class));
         TaskListener listener = getContext().get(TaskListener.class);
         Launcher launcher = getContext().get(Launcher.class);
         FlowNode node = getContext().get(FlowNode.class);
@@ -48,24 +52,29 @@ public class JUnitResultsStepExecution extends SynchronousNonBlockingStepExecuti
         pipelineTestDetails.setNodeId(nodeId);
         pipelineTestDetails.setEnclosingBlocks(getEnclosingBlockIds(enclosingBlocks));
         pipelineTestDetails.setEnclosingBlockNames(getEnclosingBlockNames(enclosingBlocks));
-        try {
-            TestResultAction testResultAction = JUnitResultArchiver.parseAndAttach(step, pipelineTestDetails, run, workspace, launcher, listener);
 
-            if (testResultAction != null) {
-                TestResult testResult = testResultAction.getResult().getResultByNode(nodeId);
-                int testFailures = testResult.getFailCount();
+        try {
+            // If we are within a withChecks context, and have not provided a name override in the step, apply the withChecks name
+            if (Util.fixEmpty(step.getChecksName()) == null) {
+                Optional.ofNullable(getContext().get(ChecksInfo.class))
+                        .map(ChecksInfo::getName)
+                        .ifPresent(step::setChecksName);
+            }
+            TestResultSummary summary = JUnitResultArchiver.parseAndSummarize(step, pipelineTestDetails, run, workspace, launcher, listener);
+
+            if (summary.getFailCount() > 0) {
+                int testFailures = summary.getFailCount();
                 if (testFailures > 0) {
                     node.addOrReplaceAction(new WarningAction(Result.UNSTABLE).withMessage(testFailures + " tests failed"));
                     run.setResult(Result.UNSTABLE);
                 }
-                return new TestResultSummary(testResult);
             }
+            return summary;
         } catch (Exception e) {
+            assert listener != null;
             listener.getLogger().println(e.getMessage());
             throw e;
         }
-
-        return new TestResultSummary();
     }
 
     /**

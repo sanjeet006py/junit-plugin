@@ -36,7 +36,6 @@ import hudson.model.BuildListener;
 import hudson.model.Fingerprint.RangeSet;
 import hudson.model.InvisibleAction;
 import hudson.model.ItemGroup;
-import hudson.tasks.junit.Helper;
 import jenkins.model.Jenkins;
 import hudson.model.Item;
 import hudson.model.Job;
@@ -61,7 +60,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.CheckForNull;
-import org.acegisecurity.AccessDeniedException;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 
@@ -168,12 +166,16 @@ public class AggregatedTestResultPublisher extends Recorder {
             if (jobs != null) {
                 for (String job : Util.tokenize(jobs,",")) {
                     try {
-                        AbstractProject j = Helper.getActiveInstance().getItemByFullName(job.trim(), AbstractProject.class);
+                        AbstractProject j = Jenkins.get().getItemByFullName(job.trim(), AbstractProject.class);
                         if (j != null) {
                             r.add(j);
                         }
-                    } catch (AccessDeniedException x) {
-                        // just skip it
+                    } catch (RuntimeException x) {
+                        if (x.getClass().getSimpleName().startsWith("AccessDeniedException")) {
+                            // just skip it
+                        } else {
+                            throw x;
+                        }
                     }
                 }
             }
@@ -352,7 +354,7 @@ public class AggregatedTestResultPublisher extends Recorder {
 
             for (String name : Util.tokenize(fixNull(value), ",")) {
                 name = name.trim();
-                if (Helper.getActiveInstance().getItem(name,project) == null) {
+                if (Jenkins.get().getItem(name,project) == null) {
                     final AbstractProject<?,?> nearest = AbstractProject.findNearest(name);
                     return FormValidation.error(Messages.BuildTrigger_NoSuchProject(name, nearest != null ? nearest.getName() : null));
                 }

@@ -112,7 +112,7 @@ public final class SuiteResult implements Serializable {
     /**
      * @since 1.22
      */
-    SuiteResult(String name, String stdout, String stderr, @CheckForNull PipelineTestDetails pipelineTestDetails) {
+    public SuiteResult(String name, String stdout, String stderr, @CheckForNull PipelineTestDetails pipelineTestDetails) {
         this.name = name;
         this.stderr = stderr;
         this.stdout = stdout;
@@ -131,7 +131,7 @@ public final class SuiteResult implements Serializable {
         if (casesByName == null) {
             casesByName = new HashMap<>();
             for (CaseResult c : cases) {
-                casesByName.put(c.getTransformedTestName(), c);
+                casesByName.put(c.getTransformedFullDisplayName(), c);
             }
         }
         return casesByName;
@@ -292,9 +292,9 @@ public final class SuiteResult implements Serializable {
         this.stderr = stderr;
     }
 
-    /*package*/ void addCase(CaseResult cr) {
+    public void addCase(CaseResult cr) {
         cases.add(cr);
-        casesByName().put(cr.getTransformedTestName(), cr);
+        casesByName().put(cr.getTransformedFullDisplayName(), cr);
 
         //if suite time was not specified use sum of the cases' times
         if( !hasTimeAttr() ){
@@ -387,13 +387,13 @@ public final class SuiteResult implements Serializable {
     /**
      * The absolute path to the original test report. OS-dependent.
      *
-     * @return the sabsolute path to the original test report.
+     * @return the absolute path to the original test report.
      */
     public String getFile() {
-		return file;
-	}
+        return file;
+    }
 
-	public hudson.tasks.junit.TestResult getParent() {
+    public hudson.tasks.junit.TestResult getParent() {
         return parent;
     }
 
@@ -421,27 +421,24 @@ public final class SuiteResult implements Serializable {
     }
 
     /**
-     * Returns the {@link CaseResult} whose {@link CaseResult#getDisplayName()}
+     * Returns the {@link CaseResult} whose {@link CaseResult#getFullDisplayName()}
      * is the same as the given string.
-     * <p>
-     * Note that test name needs not be unique.
-     * </p>
      *
-     * @param name The case name.
+     * @param caseResultFullDisplayName The case FullDisplayName.
      *
      * @return the {@link CaseResult} with the provided name.
      */
-    public CaseResult getCase(String name) {
-        return casesByName().get(name);
+    public CaseResult getCase(String caseResultFullDisplayName) {
+        return casesByName().get(caseResultFullDisplayName);
     }
 
-	public Set<String> getClassNames() {
-		Set<String> result = new HashSet<String>();
-		for (CaseResult c : cases) {
-			result.add(c.getClassName());
-		}
-		return result;
-	}
+    public Set<String> getClassNames() {
+        Set<String> result = new HashSet<String>();
+        for (CaseResult c : cases) {
+            result.add(c.getClassName());
+        }
+        return result;
+    }
 
     /** KLUGE. We have to call this to prevent freeze()
      * from calling c.freeze() on all its children,
@@ -449,7 +446,7 @@ public final class SuiteResult implements Serializable {
      * which requires a non-null parent.
      * @param parent
      */
-    void setParent(hudson.tasks.junit.TestResult parent) {
+    public void setParent(hudson.tasks.junit.TestResult parent) {
         this.parent = parent;
     }
 

@@ -24,9 +24,13 @@
 package hudson.tasks.junit;
 
 import hudson.model.Run;
+import io.jenkins.plugins.junit.storage.FileJunitTestResultStorage;
+import io.jenkins.plugins.junit.storage.TestResultImpl;
+import io.jenkins.plugins.junit.storage.JunitTestResultStorage;
 import hudson.tasks.test.TabulatedResult;
 import hudson.tasks.test.TestResult;
 import hudson.tasks.test.TestObject;
+import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.export.Exported;
@@ -52,7 +56,7 @@ public final class ClassResult extends TabulatedResult implements Comparable<Cla
 
     private final PackageResult parent;
 
-    ClassResult(PackageResult parent, String className) {
+    public ClassResult(PackageResult parent, String className) {
         this.parent = parent;
         this.className = className;
     }
@@ -128,7 +132,7 @@ public final class ClassResult extends TabulatedResult implements Comparable<Cla
 
     @Override
     public Object getDynamic(String name, StaplerRequest req, StaplerResponse rsp) {
-    	CaseResult c = getCaseResult(name);
+        CaseResult c = getCaseResult(name);
     	if (c != null) {
             return c;
     	} else {
